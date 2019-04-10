@@ -115,6 +115,8 @@ pub const Error = union(enum) {
     UnattachedDocComment: UnattachedDocComment,
     ExpectedEqOrSemi: ExpectedEqOrSemi,
     ExpectedSemiOrLBrace: ExpectedSemiOrLBrace,
+    ExpectedLabelOrLBrace: ExpectedLabelOrLBrace,
+    ExpectedLBrace: ExpectedLBrace,
     ExpectedColonOrRParen: ExpectedColonOrRParen,
     ExpectedLabelable: ExpectedLabelable,
     ExpectedInlinable: ExpectedInlinable,
@@ -126,6 +128,8 @@ pub const Error = union(enum) {
     ExtraConstQualifier: ExtraConstQualifier,
     ExtraVolatileQualifier: ExtraVolatileQualifier,
     ExtraAllowZeroQualifier: ExtraAllowZeroQualifier,
+    ExpectedTypeExpr: ExpectedTypeExpr,
+    ExpectedExpr: ExpectedExpr,
     ExpectedPrimaryExpr: ExpectedPrimaryExpr,
     ExpectedToken: ExpectedToken,
     ExpectedCommaOrEnd: ExpectedCommaOrEnd,
@@ -140,6 +144,8 @@ pub const Error = union(enum) {
             @TagType(Error).UnattachedDocComment => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedEqOrSemi => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedSemiOrLBrace => |*x| return x.render(tokens, stream),
+            @TagType(Error).ExpectedLabelOrLBrace => |*x| return x.render(tokens, stream),
+            @TagType(Error).ExpectedLBrace => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedColonOrRParen => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedLabelable => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedInlinable => |*x| return x.render(tokens, stream),
@@ -151,6 +157,8 @@ pub const Error = union(enum) {
             @TagType(Error).ExtraConstQualifier => |*x| return x.render(tokens, stream),
             @TagType(Error).ExtraVolatileQualifier => |*x| return x.render(tokens, stream),
             @TagType(Error).ExtraAllowZeroQualifier => |*x| return x.render(tokens, stream),
+            @TagType(Error).ExpectedTypeExpr => |*x| return x.render(tokens, stream),
+            @TagType(Error).ExpectedExpr => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedPrimaryExpr => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedToken => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedCommaOrEnd => |*x| return x.render(tokens, stream),
@@ -167,6 +175,8 @@ pub const Error = union(enum) {
             @TagType(Error).UnattachedDocComment => |x| return x.token,
             @TagType(Error).ExpectedEqOrSemi => |x| return x.token,
             @TagType(Error).ExpectedSemiOrLBrace => |x| return x.token,
+            @TagType(Error).ExpectedLabelOrLBrace => |x| return x.token,
+            @TagType(Error).ExpectedLBrace => |x| return x.token,
             @TagType(Error).ExpectedColonOrRParen => |x| return x.token,
             @TagType(Error).ExpectedLabelable => |x| return x.token,
             @TagType(Error).ExpectedInlinable => |x| return x.token,
@@ -178,6 +188,8 @@ pub const Error = union(enum) {
             @TagType(Error).ExtraConstQualifier => |x| return x.token,
             @TagType(Error).ExtraVolatileQualifier => |x| return x.token,
             @TagType(Error).ExtraAllowZeroQualifier => |x| return x.token,
+            @TagType(Error).ExpectedTypeExpr => |x| return x.token,
+            @TagType(Error).ExpectedExpr => |x| return x.token,
             @TagType(Error).ExpectedPrimaryExpr => |x| return x.token,
             @TagType(Error).ExpectedToken => |x| return x.token,
             @TagType(Error).ExpectedCommaOrEnd => |x| return x.token,
@@ -190,11 +202,15 @@ pub const Error = union(enum) {
     pub const ExpectedAggregateKw = SingleTokenError("Expected " ++ @tagName(Token.Id.Keyword_struct) ++ ", " ++ @tagName(Token.Id.Keyword_union) ++ ", or " ++ @tagName(Token.Id.Keyword_enum) ++ ", found {}");
     pub const ExpectedEqOrSemi = SingleTokenError("Expected '=' or ';', found {}");
     pub const ExpectedSemiOrLBrace = SingleTokenError("Expected ';' or '{{', found {}");
+    pub const ExpectedLBrace = SingleTokenError("Expected '{{', found {}");
+    pub const ExpectedLabelOrLBrace = SingleTokenError("Expected label or '{{', found {}");
     pub const ExpectedColonOrRParen = SingleTokenError("Expected ':' or ')', found {}");
     pub const ExpectedLabelable = SingleTokenError("Expected 'while', 'for', 'inline', 'suspend', or '{{', found {}");
     pub const ExpectedInlinable = SingleTokenError("Expected 'while' or 'for', found {}");
     pub const ExpectedAsmOutputReturnOrType = SingleTokenError("Expected '->' or " ++ @tagName(Token.Id.Identifier) ++ ", found {}");
     pub const ExpectedSliceOrRBracket = SingleTokenError("Expected ']' or '..', found {}");
+    pub const ExpectedTypeExpr = SingleTokenError("Expected type expression, found {}");
+    pub const ExpectedExpr = SingleTokenError("Expected expression, found {}");
     pub const ExpectedPrimaryExpr = SingleTokenError("Expected primary expression, found {}");
 
     pub const UnattachedDocComment = SimpleError("Unattached documentation comment");
