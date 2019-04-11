@@ -352,14 +352,89 @@ fn parseContainerField(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*No
 //      / SwitchExpr
 //      / AssignExpr SEMICOLON
 fn parseStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented;
+    const comptime_token = eatToken(it, Token.Id.Keyword_comptime);
+    const var_decl_node = try parseVarDecl(arena, it, tree);
+
+    if (var_decl_node) |node| {
+        const var_decl = node.cast(Node.VarDecl).?;
+        var_decl.comptime_token = comptime_token;
+        return node;
+    }
+
+    if (comptime_token) |token| {
+        const block_expr = (try expectNode(arena, it, tree, parseBlockExprStatement, Error{
+            .ExpectedBlockOrAssignment = Error.ExpectedBlockOrAssignment{ .token = it.peek().?.start },
+        })) orelse return null;
+        // TODO
+        return error.NotImplemented;
+    }
+
+    if (eatToken(it, Token.Id.Keyword_suspend)) |token| {
+        if (eatToken(it, Token.Id.Semicolon)) |semicolon| {
+            // TODO
+            return null;
+        }
+        const node = (try expectNode(arena, it, tree, parseBlockExprStatement, Error{
+            .ExpectedBlockOrAssignment = Error.ExpectedBlockOrAssignment{ .token = it.peek().?.start },
+        })) orelse return null;
+        // TODO
+        return null;
+    }
+
+    if (eatToken(it, Token.Id.Keyword_defer)) |token| {
+        const node = (try expectNode(arena, it, tree, parseBlockExprStatement, Error{
+            .ExpectedBlockOrAssignment = Error.ExpectedBlockOrAssignment{ .token = it.peek().?.start },
+        })) orelse return null;
+        // TODO
+        return null;
+    }
+
+    if (eatToken(it, Token.Id.Keyword_errdefer)) |token| {
+        const node = (try expectNode(arena, it, tree, parseBlockExprStatement, Error{
+            .ExpectedBlockOrAssignment = Error.ExpectedBlockOrAssignment{ .token = it.peek().?.start },
+        })) orelse return null;
+        // TODO
+        return null;
+    }
+
+    if (try parseIfStatement(arena, it, tree)) |node| {
+        // TODO
+        return null;
+    }
+
+    if (try parseLabeledStatement(arena, it, tree)) |node| {
+        // TODO
+        return null;
+    }
+
+    if (try parseSwitchExpr(arena, it, tree)) |node| {
+        // TODO
+        return null;
+    }
+
+    if (try parseAssignExpr(arena, it, tree)) |node| {
+        _ = try expectToken(it, tree, Token.Id.Semicolon) orelse return null;
+        // TODO
+        return null;
+    }
+
+    return null;
 }
 
 // IfStatement
 //     <- IfPrefix BlockExpr ( KEYWORD_else Payload? Statement )?
 //      / IfPrefix AssignExpr ( SEMICOLON / KEYWORD_else Payload? Statement )
 fn parseIfStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented;
+    const if_prefix_node = (try parseIfPrefix(arena, it, tree)) orelse return null;
+    if (try parseBlockExpr(arena, it, tree)) |node| {
+        // TODO
+    }
+
+    if (try parseAssignExpr(arena, it, tree)) |node| {
+        // TODO
+    }
+
+    return null;
 }
 
 // LabeledStatement <- BlockLabel? (Block / LoopStatement)
@@ -390,7 +465,12 @@ fn parseWhileStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*No
 //     <- BlockExpr
 //      / AssignExpr SEMICOLON
 fn parseBlockExprStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented;
+    if (try parseBlockExpr(arena, it, tree)) |node| return node;
+    if (try parseAssignExpr(arena, it, tree)) |node| {
+        _ = try expectToken(it, tree, Token.Id.Semicolon) orelse return null;
+        return node;
+    }
+    return null;
 }
 
 // BlockExpr <- BlockLabel? Block

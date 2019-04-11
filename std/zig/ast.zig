@@ -111,6 +111,7 @@ pub const Error = union(enum) {
     InvalidToken: InvalidToken,
     ExpectedVarDeclOrFn: ExpectedVarDeclOrFn,
     ExpectedVarDecl: ExpectedVarDecl,
+    ExpectedReturnType: ExpectedReturnType,
     ExpectedAggregateKw: ExpectedAggregateKw,
     UnattachedDocComment: UnattachedDocComment,
     ExpectedEqOrSemi: ExpectedEqOrSemi,
@@ -134,6 +135,7 @@ pub const Error = union(enum) {
     ExpectedToken: ExpectedToken,
     ExpectedCommaOrEnd: ExpectedCommaOrEnd,
     ExpectedParamList: ExpectedParamList,
+    ExpectedBlockOrAssignment: ExpectedBlockOrAssignment,
 
     pub fn render(self: *const Error, tokens: *Tree.TokenList, stream: var) !void {
         switch (self.*) {
@@ -141,6 +143,7 @@ pub const Error = union(enum) {
             @TagType(Error).InvalidToken => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedVarDeclOrFn => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedVarDecl => |*x| return x.render(tokens, stream),
+            @TagType(Error).ExpectedReturnType => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedAggregateKw => |*x| return x.render(tokens, stream),
             @TagType(Error).UnattachedDocComment => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedEqOrSemi => |*x| return x.render(tokens, stream),
@@ -164,6 +167,7 @@ pub const Error = union(enum) {
             @TagType(Error).ExpectedToken => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedCommaOrEnd => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedParamList => |*x| return x.render(tokens, stream),
+            @TagType(Error).ExpectedBlockOrAssignment => |*x| return x.render(tokens, stream),
         }
     }
 
@@ -173,6 +177,7 @@ pub const Error = union(enum) {
             @TagType(Error).InvalidToken => |x| return x.token,
             @TagType(Error).ExpectedVarDeclOrFn => |x| return x.token,
             @TagType(Error).ExpectedVarDecl => |x| return x.token,
+            @TagType(Error).ExpectedReturnType => |x| return x.token,
             @TagType(Error).ExpectedAggregateKw => |x| return x.token,
             @TagType(Error).UnattachedDocComment => |x| return x.token,
             @TagType(Error).ExpectedEqOrSemi => |x| return x.token,
@@ -196,12 +201,14 @@ pub const Error = union(enum) {
             @TagType(Error).ExpectedToken => |x| return x.token,
             @TagType(Error).ExpectedCommaOrEnd => |x| return x.token,
             @TagType(Error).ExpectedParamList => |x| return x.token,
+            @TagType(Error).ExpectedBlockOrAssignment => |x| return x.token,
         }
     }
 
     pub const InvalidToken = SingleTokenError("Invalid token {}");
     pub const ExpectedVarDeclOrFn = SingleTokenError("Expected variable declaration or function, found {}");
     pub const ExpectedVarDecl = SingleTokenError("Expected variable declaration, found {}");
+    pub const ExpectedReturnType = SingleTokenError("Expected 'var' or return type expression, found {}");
     pub const ExpectedAggregateKw = SingleTokenError("Expected " ++ @tagName(Token.Id.Keyword_struct) ++ ", " ++ @tagName(Token.Id.Keyword_union) ++ ", or " ++ @tagName(Token.Id.Keyword_enum) ++ ", found {}");
     pub const ExpectedEqOrSemi = SingleTokenError("Expected '=' or ';', found {}");
     pub const ExpectedSemiOrLBrace = SingleTokenError("Expected ';' or '{{', found {}");
@@ -216,6 +223,7 @@ pub const Error = union(enum) {
     pub const ExpectedExpr = SingleTokenError("Expected expression, found {}");
     pub const ExpectedPrimaryExpr = SingleTokenError("Expected primary expression, found {}");
     pub const ExpectedParamList = SingleTokenError("Expected parameter list, found {}");
+    pub const ExpectedBlockOrAssignment = SingleTokenError("Expected block or assignment, found {}");
 
     pub const UnattachedDocComment = SimpleError("Unattached documentation comment");
     pub const ExtraAlignQualifier = SimpleError("Extra align qualifier");
