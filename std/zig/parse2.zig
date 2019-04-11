@@ -221,8 +221,43 @@ fn parseTopLevelDecl(arena: *Allocator, it: *TokenIterator, tree: *Tree, vis: ?T
 
 // FnProto <- FnCC? KEYWORD_fn IDENTIFIER? LPAREN ParamDeclList RPAREN ByteAlign? LinkSection? EXCLAMATIONMARK? (KEYWORD_var / TypeExpr)
 fn parseFnProto(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    // TODO
-    return error.NotImplemented;
+    const cc_token = parseFnCC(arena, it, tree);
+    const fn_token = eatToken(it, Token.Id.Keyword_fn) orelse return null;
+    const name_token = eatToken(it, Token.Id.Identifier);
+    const lparen = (try expectToken(it, tree, Token.Id.LParen)) orelse return null;
+    const params = (try parseParamDeclList(arena, it, tree)) orelse {
+        try tree.errors.push(Error{
+            .ExpectedParamList = Error.ExpectedParamList{ .token = it.peek().?.start },
+        });
+        return null;
+    };
+    const rparen = (try expectToken(it, tree, Token.Id.RParen)) orelse return null;
+    const alignment_node = try parseByteAlign(arena, it, tree);
+    const link_section_node = try parseLinkSection(arena, it, tree);
+    const exclamation_token = eatToken(it, Token.Id.Bang);
+
+    // (KW_var / TypeExpr)
+
+    const fn_proto_node = try arena.create(Node.FnProto);
+    fn_proto_node.* = Node.FnProto{
+        .base = Node{ .id = Node.Id.FnProto },
+        .doc_comments = null,
+        .visib_token = null,
+        .fn_token = fn_token,
+        .name_token = name_token,
+        .params = params,
+        .return_type = undefined, // TODO ReturnType
+        .var_args_token = undefined, // TODO ?TokenIndex
+        .extern_export_inline_token = null,
+        .cc_token = cc_token,
+        .async_attr = null,
+        .body_node = null,
+        .lib_name = null,
+        .align_expr = null,
+        .section_expr = null,
+    };
+
+    return &fn_proto_node.base;
 }
 
 // VarDecl <- (KEYWORD_const / KEYWORD_var) IDENTIFIER (COLON TypeExpr)? ByteAlign? LinkSection? (EQUAL Expr)? SEMICOLON
@@ -639,8 +674,9 @@ fn parseLinkSection(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node 
 //      / KEYWORD_stdcallcc
 //      / KEYWORD_extern
 //      / KEYWORD_async (LARROW TypeExpr RARROW)?
-fn parseFnCC(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented;
+fn parseFnCC(arena: *Allocator, it: *TokenIterator, tree: *Tree) ?TokenIndex {
+    // TODO
+    return null;
 }
 
 // ParamDecl <- (KEYWORD_noalias / KEYWORD_comptime)? (IDENTIFIER COLON)? ParamType
@@ -839,6 +875,41 @@ fn parseContainerDeclType(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?
 
 // ByteAlign <- KEYWORD_align LPAREN Expr RPAREN
 fn parseByteAlign(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
+    return error.NotImplemented;
+}
+
+// IdentifierList <- (IDENTIFIER COMMA)* IDENTIFIER?
+fn parseIdentifierList(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?*Node {
+    return error.NotImplemented;
+}
+
+// SwitchProngList <- (SwitchProng COMMA)* SwitchProng?
+fn parseSwitchProngList(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?*Node {
+    return error.NotImplemented;
+}
+
+// AsmOutputList <- (AsmOutputItem COMMA)* AsmOutputItem?
+fn parseAsmOutputList(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?*Node {
+    return error.NotImplemented;
+}
+
+// AsmInputList <- (AsmInputItem COMMA)* AsmInputItem?
+fn parseAsmInputList(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?*Node {
+    return error.NotImplemented;
+}
+
+// StringList <- (STRINGLITERAL COMMA)* STRINGLITERAL?
+fn parseStringList(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?*Node {
+    return error.NotImplemented;
+}
+
+// ParamDeclList <- (ParamDecl COMMA)* ParamDecl?
+fn parseParamDeclList(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?Node.FnProto.ParamList {
+    return error.NotImplemented;
+}
+
+// ExprList <- (Expr COMMA)* Expr?
+fn parseExprList(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?*Node {
     return error.NotImplemented;
 }
 

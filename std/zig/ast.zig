@@ -133,6 +133,7 @@ pub const Error = union(enum) {
     ExpectedPrimaryExpr: ExpectedPrimaryExpr,
     ExpectedToken: ExpectedToken,
     ExpectedCommaOrEnd: ExpectedCommaOrEnd,
+    ExpectedParamList: ExpectedParamList,
 
     pub fn render(self: *const Error, tokens: *Tree.TokenList, stream: var) !void {
         switch (self.*) {
@@ -162,6 +163,7 @@ pub const Error = union(enum) {
             @TagType(Error).ExpectedPrimaryExpr => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedToken => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedCommaOrEnd => |*x| return x.render(tokens, stream),
+            @TagType(Error).ExpectedParamList => |*x| return x.render(tokens, stream),
         }
     }
 
@@ -193,6 +195,7 @@ pub const Error = union(enum) {
             @TagType(Error).ExpectedPrimaryExpr => |x| return x.token,
             @TagType(Error).ExpectedToken => |x| return x.token,
             @TagType(Error).ExpectedCommaOrEnd => |x| return x.token,
+            @TagType(Error).ExpectedParamList => |x| return x.token,
         }
     }
 
@@ -212,6 +215,7 @@ pub const Error = union(enum) {
     pub const ExpectedTypeExpr = SingleTokenError("Expected type expression, found {}");
     pub const ExpectedExpr = SingleTokenError("Expected expression, found {}");
     pub const ExpectedPrimaryExpr = SingleTokenError("Expected primary expression, found {}");
+    pub const ExpectedParamList = SingleTokenError("Expected parameter list, found {}");
 
     pub const UnattachedDocComment = SimpleError("Unattached documentation comment");
     pub const ExtraAlignQualifier = SimpleError("Extra align qualifier");
