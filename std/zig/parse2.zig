@@ -480,7 +480,12 @@ fn parseBlockExprStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !
 
 // BlockExpr <- BlockLabel? Block
 fn parseBlockExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented;
+    const label_token = parseBlockLabel(arena, it, tree) orelse return null;
+    // TODO
+    // error: cannot resolve inferred error set '@typeOf(std.zig.parse2.parseBlock).ReturnType.ErrorSet': function 'std.zig.parse2.parseBlock' not fully analyzed yet
+    const block_node = (try parseBlock(arena, it, tree)) orelse return null;
+    block_node.cast(Node.Block).?.label = label_token;
+    return block_node;
 }
 
 // AssignExpr <- Expr (AssignOp Expr)?
@@ -735,8 +740,10 @@ fn parseBreakLabel(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
 }
 
 // BlockLabel <- IDENTIFIER COLON
-fn parseBlockLabel(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented;
+fn parseBlockLabel(arena: *Allocator, it: *TokenIterator, tree: *Tree) ?TokenIndex {
+    const token = eatToken(it, Token.Id.Identifier) orelse return null;
+    _ = eatToken(it, Token.Id.Colon) orelse return null;
+    return token;
 }
 
 // FieldInit <- DOT IDENTIFIER EQUAL Expr
