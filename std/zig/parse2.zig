@@ -28,7 +28,7 @@ pub fn parse(allocator: *Allocator, source: []const u8) !Tree {
         .root_node = undefined,
         .tokens = token_list,
         .errors = Tree.ErrorList.init(arena),
-        // TODO: Remove
+        // TODO: Remove (not used/needed anywhere)
         .arena_allocator = undefined,
     };
 
@@ -81,7 +81,7 @@ fn parseContainerMembers(arena: *Allocator, it: *TokenIterator, tree: *Tree) !No
         }
 
         if (try parseContainerField(arena, it, tree)) |node| {
-            // TODO: set visibility_token
+            node.cast(Node.StructField).?.visib_token = visibility_token;
             try list.push(node);
             if (eatToken(it, Token.Id.Comma)) |_| continue else break;
         }
@@ -118,7 +118,7 @@ fn parseTestDecl(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     const test_node = try arena.create(Node.TestDecl);
     test_node.* = Node.TestDecl{
         .base = Node{ .id = Node.Id.TestDecl },
-        .doc_comments = null, // TODO
+        .doc_comments = null,
         .test_token = test_token,
         .name = &name_node.base,
         .body_node = block_node,
@@ -136,7 +136,7 @@ fn parseTopLevelComptime(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*
     const comptime_node = try arena.create(Node.Comptime);
     comptime_node.* = Node.Comptime{
         .base = Node{ .id = Node.Id.Comptime },
-        .doc_comments = null, // TODO
+        .doc_comments = null,
         .comptime_token = tok,
         .expr = block_node,
     };
@@ -189,10 +189,10 @@ fn parseTopLevelDecl(arena: *Allocator, it: *TokenIterator, tree: *Tree, vis: ?T
         const thread_local_token = eatToken(it, Token.Id.Keyword_threadlocal);
         if (try parseVarDecl(arena, it, tree)) |node| {
             var var_decl = node.cast(Node.VarDecl).?;
-            var_decl.*.doc_comments = null; // TODO
+            var_decl.*.doc_comments = null;
             var_decl.*.visib_token = vis;
             var_decl.*.thread_local_token = thread_local_token;
-            var_decl.*.comptime_token = null; // TODO
+            var_decl.*.comptime_token = null;
             var_decl.*.extern_export_token = extern_export_token;
             var_decl.*.lib_name = lib_name;
             return node;
@@ -353,8 +353,8 @@ fn parseContainerField(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*No
 //      / AssignExpr SEMICOLON
 fn parseStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     const comptime_token = eatToken(it, Token.Id.Keyword_comptime);
-    const var_decl_node = try parseVarDecl(arena, it, tree);
 
+    const var_decl_node = try parseVarDecl(arena, it, tree);
     if (var_decl_node) |node| {
         const var_decl = node.cast(Node.VarDecl).?;
         var_decl.comptime_token = comptime_token;
@@ -365,8 +365,13 @@ fn parseStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
         const block_expr = (try expectNode(arena, it, tree, parseBlockExprStatement, Error{
             .ExpectedBlockOrAssignment = Error.ExpectedBlockOrAssignment{ .token = it.peek().?.start },
         })) orelse return null;
-        // TODO
-        return error.NotImplemented;
+        if (block_expr.cast(Node.Block)) |node| {
+            // TODO: set comptime_token
+            return null;
+        }
+        // TODO: if is assigment, set comptime_token
+        return null;
+        // return unreachable;
     }
 
     if (eatToken(it, Token.Id.Keyword_suspend)) |token| {
@@ -413,7 +418,7 @@ fn parseStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     }
 
     if (try parseAssignExpr(arena, it, tree)) |node| {
-        _ = try expectToken(it, tree, Token.Id.Semicolon) orelse return null;
+        _ = (try expectToken(it, tree, Token.Id.Semicolon)) orelse return null;
         // TODO
         return null;
     }
@@ -467,7 +472,7 @@ fn parseWhileStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*No
 fn parseBlockExprStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     if (try parseBlockExpr(arena, it, tree)) |node| return node;
     if (try parseAssignExpr(arena, it, tree)) |node| {
-        _ = try expectToken(it, tree, Token.Id.Semicolon) orelse return null;
+        _ = (try expectToken(it, tree, Token.Id.Semicolon)) orelse return null;
         return node;
     }
     return null;
