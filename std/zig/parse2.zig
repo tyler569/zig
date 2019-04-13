@@ -365,62 +365,57 @@ fn parseStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
         const block_expr = (try expectNode(arena, it, tree, parseBlockExprStatement, Error{
             .ExpectedBlockOrAssignment = Error.ExpectedBlockOrAssignment{ .token = it.peek().?.start },
         })) orelse return null;
-        if (block_expr.cast(Node.Block)) |node| {
-            // TODO: set comptime_token
-            return null;
-        }
-        // TODO: if is assigment, set comptime_token
-        return null;
-        // return unreachable;
+
+        const node = try arena.create(Node.Comptime);
+        node.* = Node.Comptime{
+            .base = Node{ .id = Node.Id.Comptime },
+            .doc_comments = null,
+            .comptime_token = token,
+            .expr = block_expr,
+        };
+        return &node.base;
     }
 
-    if (eatToken(it, Token.Id.Keyword_suspend)) |token| {
-        if (eatToken(it, Token.Id.Semicolon)) |semicolon| {
-            // TODO
-            return null;
-        }
-        const node = (try expectNode(arena, it, tree, parseBlockExprStatement, Error{
+    if (eatToken(it, Token.Id.Keyword_suspend)) |suspend_token| {
+        const semicolon = eatToken(it, Token.Id.Semicolon);
+
+        const body_node = if (semicolon == null) blk: {
+            break :blk (try expectNode(arena, it, tree, parseBlockExprStatement, Error{
+                // TODO: expected block or expression
+                .ExpectedBlockOrAssignment = Error.ExpectedBlockOrAssignment{ .token = it.peek().?.start },
+            })) orelse return null;
+        } else null;
+
+        const node = try arena.create(Node.Suspend);
+        node.* = Node.Suspend{
+            .base = Node{ .id = Node.Id.Suspend },
+            .suspend_token = suspend_token,
+            .body = body_node,
+        };
+        return &node.base;
+    }
+
+    const defer_token = eatToken(it, Token.Id.Keyword_defer) orelse eatToken(it, Token.Id.Keyword_errdefer);
+    if (defer_token) |token| {
+        const expr_node = (try expectNode(arena, it, tree, parseBlockExprStatement, Error{
+            // TODO: expected block or expression
             .ExpectedBlockOrAssignment = Error.ExpectedBlockOrAssignment{ .token = it.peek().?.start },
         })) orelse return null;
-        // TODO
-        return null;
+        const node = try arena.create(Node.Defer);
+        node.* = Node.Defer{
+            .base = Node{ .id = Node.Id.Defer },
+            .defer_token = token,
+            .expr = expr_node,
+        };
+        return &node.base;
     }
 
-    if (eatToken(it, Token.Id.Keyword_defer)) |token| {
-        const node = (try expectNode(arena, it, tree, parseBlockExprStatement, Error{
-            .ExpectedBlockOrAssignment = Error.ExpectedBlockOrAssignment{ .token = it.peek().?.start },
-        })) orelse return null;
-        // TODO
-        return null;
-    }
-
-    if (eatToken(it, Token.Id.Keyword_errdefer)) |token| {
-        const node = (try expectNode(arena, it, tree, parseBlockExprStatement, Error{
-            .ExpectedBlockOrAssignment = Error.ExpectedBlockOrAssignment{ .token = it.peek().?.start },
-        })) orelse return null;
-        // TODO
-        return null;
-    }
-
-    if (try parseIfStatement(arena, it, tree)) |node| {
-        // TODO
-        return null;
-    }
-
-    if (try parseLabeledStatement(arena, it, tree)) |node| {
-        // TODO
-        return null;
-    }
-
-    if (try parseSwitchExpr(arena, it, tree)) |node| {
-        // TODO
-        return null;
-    }
-
+    if (try parseIfStatement(arena, it, tree)) |node| return node;
+    if (try parseLabeledStatement(arena, it, tree)) |node| return node;
+    if (try parseSwitchExpr(arena, it, tree)) |node| return node;
     if (try parseAssignExpr(arena, it, tree)) |node| {
         _ = (try expectToken(it, tree, Token.Id.Semicolon)) orelse return null;
-        // TODO
-        return null;
+        return node;
     }
 
     return null;
@@ -444,18 +439,71 @@ fn parseIfStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node 
 
 // LabeledStatement <- BlockLabel? (Block / LoopStatement)
 fn parseLabeledStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented;
+    const label_token = parseBlockLabel(arena, it, tree);
+
+    if (try parseBlock(arena, it, tree)) |node| {
+        node.cast(Node.Block).?.label = label_token;
+        return node;
+    }
+
+    if (try parseLoopStatement(arena, it, tree)) |node| {
+        if (node.cast(Node.For)) |for_node| {
+            for_node.label = label_token;
+        } else if (node.cast(Node.While)) |while_node| {
+            while_node.label = label_token;
+        } else unreachable;
+        return node;
+    }
+
+    return null;
 }
 
 // LoopStatement <- KEYWORD_inline? (ForStatement / WhileStatement)
 fn parseLoopStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented;
+    const inline_token = eatToken(it, Token.Id.Keyword_inline);
+
+    if (try parseForStatement(arena, it, tree)) |node| {
+        node.cast(Node.For).?.inline_token = inline_token;
+        return node;
+    }
+
+    if (try parseWhileStatement(arena, it, tree)) |node| {
+        node.cast(Node.While).?.inline_token = inline_token;
+        return node;
+    }
+
+    return null;
 }
 
 // ForStatement
 //     <- ForPrefix BlockExpr ( KEYWORD_else Statement )?
 //      / ForPrefix AssignExpr ( SEMICOLON / KEYWORD_else Statement )
 fn parseForStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
+    const for_prefix = (try parseForPrefix(arena, it, tree)) orelse return null;
+
+    if (try parseBlockExpr(arena, it, tree)) |block_expr_node| {
+        if (eatToken(it, Token.Id.Keyword_else)) |_| {
+            const statement_node = (try expectNode(arena, it, tree, parseStatement, Error{
+                .InvalidToken = Error.InvalidToken{ .token = it.peek().?.start },
+            })) orelse return null;
+            const for_node = try arena.create(Node.For);
+            for_node.* = Node.For{
+                .base = Node{ .id = Node.Id.For },
+                .label = undefined, // TODO
+                .inline_token = undefined, // TODO
+                .for_token = undefined, // TODO
+                .array_expr = undefined, // TODO
+                .payload = undefined, // TODO
+                .body = undefined, // TODO
+                .@"else" = undefined, // TODO
+            };
+
+            return &for_node.base;
+        }
+
+        return block_expr_node;
+    }
+
     return error.NotImplemented;
 }
 
@@ -479,11 +527,9 @@ fn parseBlockExprStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !
 }
 
 // BlockExpr <- BlockLabel? Block
-fn parseBlockExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
+fn parseBlockExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?*Node {
     const label_token = parseBlockLabel(arena, it, tree) orelse return null;
-    // TODO
-    // error: cannot resolve inferred error set '@typeOf(std.zig.parse2.parseBlock).ReturnType.ErrorSet': function 'std.zig.parse2.parseBlock' not fully analyzed yet
-    const block_node = (try parseBlock(arena, it, tree)) orelse return null;
+    const block_node = (parseBlock(arena, it, tree) catch return error.TodoFixRecursion) orelse return null;
     block_node.cast(Node.Block).?.label = label_token;
     return block_node;
 }
@@ -560,12 +606,15 @@ fn parseIfExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
 }
 
 // Block <- LBRACE Statement* RBRACE
-fn parseBlock(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
+fn parseBlock(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?*Node {
     const lbrace = eatToken(it, Token.Id.LBrace) orelse return null;
+
     var statements = Node.Block.StatementList.init(arena);
     while (true) {
-        try statements.push((try parseStatement(arena, it, tree)) orelse break);
+        const statement = (try parseStatement(arena, it, tree)) orelse break;
+        try statements.push(statement);
     }
+
     const rbrace = (try expectToken(it, tree, Token.Id.RBrace)) orelse return null;
 
     const block_node = try arena.create(Node.Block);
