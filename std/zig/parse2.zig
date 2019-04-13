@@ -631,12 +631,117 @@ fn parsePrefixExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
 //      / Block
 //      / CurlySuffixExpr
 fn parsePrimaryExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented; // TODO
+    // TODO: enum literal not represented in grammar: https://github.com/ziglang/zig/issues/2235
+    if (try parseEnumLiteral(arena, it, tree)) |node| return node;
+    if (try parseAsmExpr(arena, it, tree)) |node| return node;
+    if (try parseIfExpr(arena, it, tree)) |node| return node;
+
+    if (eatToken(it, Token.Id.Keyword_break)) {
+        const label = parseBreakLabel(arena, it, tree);
+        const expr_node = try parseExpr(arena, it, tree);
+        const node = try arena.create(Node.ControlFlowExpression);
+        node.* = Node.ControlFlowExpression{
+            .base = Node{ .id = Node.Id.ControlFlowExpression },
+            .ltoken = label,
+            .kind = .Break,
+            .rhs = expr_node,
+        };
+        return &node.base;
+    }
+
+    if (eatToken(it, Token.Id.Keyword_cancel)) |token| {
+        const expr_node = (try expectNode(arena, it, tree, parseExpr, Error{
+            .ExpectedExpr = Error.ExpectedExpr{ .token = it.peek().?.start() },
+        })) orelse return null;
+        const node = arena.create(Node.PrefixOp);
+        node.* = Node.PrefixOp{
+            .base = Node{ .id = Node.PrefixOp },
+            .op_token = token,
+            .op = .Cancel,
+            .rhs = expr_node,
+        };
+        return &node.base;
+    }
+
+    if (eatToken(it, Token.Id.Keyword_comptime)) |token| {
+        const expr_node = (try expectNode(arena, it, tree, parseExpr, Error{
+            .ExpectedExpr = Error.ExpectedExpr{ .token = it.peek().?.start() },
+        })) orelse return null;
+        const node = arena.create(Node.Comptime);
+        node.* = Node.Comptime{
+            .base = Node{ .id = Node.Comptime },
+            .doc_comments = null,
+            .comptime_token = token,
+            .expr = expr_node,
+        };
+        return &node.base;
+    }
+
+    if (eatToken(it, Token.Id.Keyword_continue)) {
+        const label = parseBreakLabel(arena, it, tree);
+        const node = try arena.create(Node.ControlFlowExpression);
+        node.* = Node.ControlFlowExpression{
+            .base = Node{ .id = Node.Id.ControlFlowExpression },
+            .ltoken = label,
+            .kind = .Continue,
+            .rhs = null,
+        };
+        return &node.base;
+    }
+
+    if (eatToken(it, Token.Id.Keyword_resume)) |token| {
+        const expr_node = (try expectNode(arena, it, tree, parseExpr, Error{
+            .ExpectedExpr = Error.ExpectedExpr{ .token = it.peek().?.start() },
+        })) orelse return null;
+        const node = arena.create(Node.PrefixOp);
+        node.* = Node.PrefixOp{
+            .base = Node{ .id = Node.PrefixOp },
+            .op_token = token,
+            .op = .Resume,
+            .rhs = expr_node,
+        };
+        return &node.base;
+    }
+
+    if (eatToken(it, Token.Id.Keyword_return)) |token| {
+        const label = parseBreakLabel(arena, it, tree);
+        const expr_node = try parseExpr(arena, it, tree);
+        const node = try arena.create(Node.ControlFlowExpression);
+        node.* = Node.ControlFlowExpression{
+            .base = Node{ .id = Node.Id.ControlFlowExpression },
+            .ltoken = label,
+            .kind = .Return,
+            .rhs = expr_node,
+        };
+        return &node.base;
+    }
+
+    // TODO: BlockLabel? LoopExpr
+    if (try parseBlock(arena, it, expr)) |node| return node;
+    if (try parseCurlySuffixExpr(arena, it, tree)) |node| return node;
+
+    return null;
 }
 
 // IfExpr <- IfPrefix Expr (KEYWORD_else Payload? Expr)?
 fn parseIfExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented; // TODO
+    const if_node = (try parseIfPrefix(arena, it, tree)) orelse return null;
+    const expr_node = (try parseExpr(arena, it, tree)) orelse return null;
+
+    const else_node = if (eatToken(it, Token.Id.Keyword_else)) |else_token| blk: {
+        const payload = try parsePayload(arena, it, tree);
+        const else_expr = try expectNode(arena, it, tree, parseExpr, Error{
+            .ExpectedExpr = Error.ExpectedExpr{ .token = it.peek().?.start },
+        }) orelse return null;
+
+        break :blk adsf{};
+    } else null;
+
+    const node = if_node.cast(Node.If).?;
+    node.*.body = expr_node;
+    node.*.@"else" = else_node;
+
+    return &node.base;
 }
 
 // Block <- LBRACE Statement* RBRACE
@@ -818,8 +923,8 @@ fn parseAsmClobbers(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node 
 }
 
 // BreakLabel <- COLON IDENTIFIER
-fn parseBreakLabel(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented; // TODO
+fn parseBreakLabel(arena: *Allocator, it: *TokenIterator, tree: *Tree) ?TokenIndex {
+    return null; // TODO
 }
 
 // BlockLabel <- IDENTIFIER COLON
