@@ -657,7 +657,7 @@ fn parsePrimaryExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node 
         node.* = Node.PrefixOp{
             .base = Node{ .id = Node.PrefixOp },
             .op_token = token,
-            .op = .Cancel,
+            .op = Node.PrefixOp.Op.Cancel,
             .rhs = expr_node,
         };
         return &node.base;
@@ -697,7 +697,7 @@ fn parsePrimaryExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node 
         node.* = Node.PrefixOp{
             .base = Node{ .id = Node.PrefixOp },
             .op_token = token,
-            .op = .Resume,
+            .op = Node.PrefixOp.Op.Resume,
             .rhs = expr_node,
         };
         return &node.base;
