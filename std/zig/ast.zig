@@ -116,6 +116,7 @@ pub const Error = union(enum) {
     UnattachedDocComment: UnattachedDocComment,
     ExpectedEqOrSemi: ExpectedEqOrSemi,
     ExpectedSemiOrLBrace: ExpectedSemiOrLBrace,
+    ExpectedSemiOrElse: ExpectedSemiOrElse,
     ExpectedLabelOrLBrace: ExpectedLabelOrLBrace,
     ExpectedLBrace: ExpectedLBrace,
     ExpectedColonOrRParen: ExpectedColonOrRParen,
@@ -148,6 +149,7 @@ pub const Error = union(enum) {
             @TagType(Error).UnattachedDocComment => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedEqOrSemi => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedSemiOrLBrace => |*x| return x.render(tokens, stream),
+            @TagType(Error).ExpectedSemiOrElse => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedLabelOrLBrace => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedLBrace => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedColonOrRParen => |*x| return x.render(tokens, stream),
@@ -182,6 +184,7 @@ pub const Error = union(enum) {
             @TagType(Error).UnattachedDocComment => |x| return x.token,
             @TagType(Error).ExpectedEqOrSemi => |x| return x.token,
             @TagType(Error).ExpectedSemiOrLBrace => |x| return x.token,
+            @TagType(Error).ExpectedSemiOrElse => |x| return x.token,
             @TagType(Error).ExpectedLabelOrLBrace => |x| return x.token,
             @TagType(Error).ExpectedLBrace => |x| return x.token,
             @TagType(Error).ExpectedColonOrRParen => |x| return x.token,
@@ -212,6 +215,7 @@ pub const Error = union(enum) {
     pub const ExpectedAggregateKw = SingleTokenError("Expected " ++ @tagName(Token.Id.Keyword_struct) ++ ", " ++ @tagName(Token.Id.Keyword_union) ++ ", or " ++ @tagName(Token.Id.Keyword_enum) ++ ", found {}");
     pub const ExpectedEqOrSemi = SingleTokenError("Expected '=' or ';', found {}");
     pub const ExpectedSemiOrLBrace = SingleTokenError("Expected ';' or '{{', found {}");
+    pub const ExpectedSemiOrElse = SingleTokenError("Expected ';' or 'else', found {}");
     pub const ExpectedLBrace = SingleTokenError("Expected '{{', found {}");
     pub const ExpectedLabelOrLBrace = SingleTokenError("Expected label or '{{', found {}");
     pub const ExpectedColonOrRParen = SingleTokenError("Expected ':' or ')', found {}");

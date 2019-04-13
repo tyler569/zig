@@ -425,13 +425,47 @@ fn parseStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
 //     <- IfPrefix BlockExpr ( KEYWORD_else Payload? Statement )?
 //      / IfPrefix AssignExpr ( SEMICOLON / KEYWORD_else Payload? Statement )
 fn parseIfStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    const if_prefix_node = (try parseIfPrefix(arena, it, tree)) orelse return null;
-    if (try parseBlockExpr(arena, it, tree)) |node| {
-        // TODO
+    const if_node = if (try parseIfPrefix(arena, it, tree)) |node| node.cast(Node.If).? else return null;
+    const block_expr = (try parseBlockExpr(arena, it, tree));
+    const assign_expr = if (block_expr == null) blk: {
+        break :blk (try parseAssignExpr(arena, it, tree)) orelse null;
+    } else null;
+    const semicolon = if (assign_expr != null) eatToken(it, Token.Id.Semicolon) else null;
+
+    const else_node = if (semicolon != null) blk: {
+        const else_token = eatToken(it, Token.Id.Keyword_else) orelse break :blk null;
+        const payload = try parsePayload(arena, it, tree);
+        const else_body = (try expectNode(arena, it, tree, parseStatement, Error{
+            .InvalidToken = Error.InvalidToken{ .token = it.peek().?.start },
+        })) orelse return null;
+
+        const node = try arena.create(Node.Else);
+        node.* = Node.Else{
+            .base = Node{ .id = Node.Id.Else },
+            .else_token = else_token,
+            .payload = payload,
+            .body = else_body,
+        };
+
+        break :blk node;
+    } else null;
+
+    if (block_expr) |body| {
+        if_node.body = body;
+        if_node.@"else" = else_node;
+        return &if_node.base;
     }
 
-    if (try parseAssignExpr(arena, it, tree)) |node| {
-        // TODO
+    if (assign_expr) |body| {
+        if_node.body = body;
+        if (semicolon != null) return &if_node.base;
+        if (else_node != null) {
+            if_node.@"else" = else_node;
+            return &if_node.base;
+        }
+        try tree.errors.push(Error{
+            .ExpectedSemiOrElse = Error.ExpectedSemiOrElse{ .token = it.peek().?.start },
+        });
     }
 
     return null;
@@ -835,7 +869,24 @@ fn parseParamType(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
 
 // IfPrefix <- KEYWORD_if LPAREN Expr RPAREN PtrPayload?
 fn parseIfPrefix(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented;
+    const if_token = eatToken(it, Token.Id.Keyword_if) orelse return null;
+    _ = (try expectToken(it, tree, Token.Id.LParen)) orelse return null;
+    const condition = (try expectNode(arena, it, tree, parseExpr, Error{
+        .ExpectedExpr = Error.ExpectedExpr{ .token = it.peek().?.start },
+    })) orelse return null;
+    _ = (try expectToken(it, tree, Token.Id.RParen)) orelse return null;
+    const payload = try parsePtrPayload(arena, it, tree);
+
+    const node = try arena.create(Node.If);
+    node.* = Node.If{
+        .base = Node{ .id = Node.Id.If },
+        .if_token = if_token,
+        .condition = condition,
+        .payload = payload,
+        .body = undefined, // set by caller
+        .@"else" = null,
+    };
+    return &node.base;
 }
 
 // WhilePrefix <- KEYWORD_while LPAREN Expr RPAREN PtrPayload? WhileContinueExpr?
