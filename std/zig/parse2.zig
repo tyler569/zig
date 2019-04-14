@@ -100,7 +100,9 @@ fn parseContainerMembers(arena: *Allocator, it: *TokenIterator, tree: *Tree) !No
 // TestDecl <- KEYWORD_test STRINGLITERAL Block
 fn parseTestDecl(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     const test_token = eatToken(it, .Keyword_test) orelse return null;
-    const name_token = (try expectToken(it, tree, .StringLiteral)) orelse return null;
+    const name_node = (try expectNode(arena, it, tree, parseStringLiteral, Error{
+        .ExpectedStringLiteral = Error.ExpectedStringLiteral{ .token = it.peek().?.start },
+    })) orelse return null;
     const block_node = (try expectNode(
         arena,
         it,
@@ -108,19 +110,13 @@ fn parseTestDecl(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
         parseBlock,
         Error{ .ExpectedLBrace = Error.ExpectedLBrace{ .token = it.peek().?.start } },
     )) orelse return null;
-    // TODO: deal with MultilineStringLiteralLine
-    const name_node = try arena.create(Node.StringLiteral);
-    name_node.* = Node.StringLiteral{
-        .base = Node{ .id = .StringLiteral },
-        .token = name_token,
-    };
 
     const test_node = try arena.create(Node.TestDecl);
     test_node.* = Node.TestDecl{
         .base = Node{ .id = .TestDecl },
         .doc_comments = null,
         .test_token = test_token,
-        .name = &name_node.base,
+        .name = name_node,
         .body_node = block_node,
     };
     return &test_node.base;

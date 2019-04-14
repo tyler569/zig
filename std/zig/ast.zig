@@ -109,6 +109,7 @@ pub const Tree = struct {
 
 pub const Error = union(enum) {
     InvalidToken: InvalidToken,
+    ExpectedStringLiteral: ExpectedStringLiteral,
     ExpectedVarDeclOrFn: ExpectedVarDeclOrFn,
     ExpectedVarDecl: ExpectedVarDecl,
     ExpectedReturnType: ExpectedReturnType,
@@ -142,6 +143,7 @@ pub const Error = union(enum) {
         switch (self.*) {
             // TODO https://github.com/ziglang/zig/issues/683
             @TagType(Error).InvalidToken => |*x| return x.render(tokens, stream),
+            @TagType(Error).ExpectedStringLiteral => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedVarDeclOrFn => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedVarDecl => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedReturnType => |*x| return x.render(tokens, stream),
@@ -177,6 +179,7 @@ pub const Error = union(enum) {
         switch (self.*) {
             // TODO https://github.com/ziglang/zig/issues/683
             @TagType(Error).InvalidToken => |x| return x.token,
+            @TagType(Error).ExpectedStringLiteral => |x| return x.token,
             @TagType(Error).ExpectedVarDeclOrFn => |x| return x.token,
             @TagType(Error).ExpectedVarDecl => |x| return x.token,
             @TagType(Error).ExpectedReturnType => |x| return x.token,
@@ -209,6 +212,7 @@ pub const Error = union(enum) {
     }
 
     pub const InvalidToken = SingleTokenError("Invalid token {}");
+    pub const ExpectedStringLiteral = SingleTokenError("Expected string literal, found {}");
     pub const ExpectedVarDeclOrFn = SingleTokenError("Expected variable declaration or function, found {}");
     pub const ExpectedVarDecl = SingleTokenError("Expected variable declaration, found {}");
     pub const ExpectedReturnType = SingleTokenError("Expected 'var' or return type expression, found {}");
