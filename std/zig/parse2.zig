@@ -50,7 +50,12 @@ fn parseRoot(arena: *Allocator, it: *TokenIterator, tree: *Tree) !*Node.Root {
         .eof_token = undefined, // TODO: used upon error?
     };
     node.decls = (try parseContainerMembers(arena, it, tree)) orelse return node;
-    node.eof_token = (try expectToken(it, tree, .Eof)) orelse undefined;
+    node.eof_token = eatToken(it, .Eof) orelse blk: {
+        try tree.errors.push(Error{
+            .InvalidToken = Error.InvalidToken{ .token = it.peek().?.start },
+        });
+        break :blk 0;
+    };
     return node;
 }
 
@@ -88,6 +93,7 @@ fn parseContainerMembers(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?N
             if (eatToken(it, .Comma)) |_| continue else break;
         }
 
+        // Dangling pub
         if (visibility_token != null) {
             try tree.errors.push(Error{
                 .ExpectedPubItem = Error.ExpectedPubItem{ .token = it.peek().?.start },
