@@ -1804,7 +1804,35 @@ fn parseBinOpExpr(
     childParseFn: ParseFn,
     chain: BinOpChain,
 ) !?*Node {
+    var res = (try childParseFn(arena, it, tree)) orelse return null;
+    while (true) {
+        // TODO! Some stuff
+        const op = (try opParseFn(arena, it, tree)) orelse break;
+        const right = (try expectNode(arena, it, tree, childParseFn, Error{
+            .InvalidToken = Error.InvalidToken{ .token = it.peek().?.start },
+        })) orelse return null;
+        const left = res;
+        res = op;
+        switch (op.id) {
+            // .InfixOp => |infix| {
+            //     infix.lhs = left;
+            //     infix.rhs = right;
+            //     break;
+            // },
+            // another => {
+            //     break;
+            // },
+            else => unreachable,
+        }
+
+        switch (chain) {
+            .Once => break,
+            .Infinitely => continue,
+        }
+    }
+
     // TODO
+
     return error.NotImplemented;
 }
 
