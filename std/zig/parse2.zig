@@ -1114,12 +1114,38 @@ fn parseSwitchExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
 
 // AsmExpr <- KEYWORD_asm KEYWORD_volatile? LPAREN STRINGLITERAL AsmOutput? RPAREN
 fn parseAsmExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented; // TODO
+    const asm_token = eatToken(it, .Keyword_asm) orelse return null;
+    const volatile_token = eatToken(it, .Keyword_volatile);
+    _ = (try expectToken(it, tree, .LParen)) orelse return null;
+    const asm_output = try parseAsmOutput(arena, it, tree);
+    const rparen = (try expectToken(it, tree, .RParen)) orelse return null;
+
+    const node = try arena.create(Node.Asm);
+    node.* = Node.Asm{
+        .base = Node{ .id = .Asm },
+        .asm_token = asm_token,
+        .volatile_token = volatile_token,
+        .template = undefined, //TODO
+        .outputs = undefined, // asm_output, // TODO
+        .inputs = undefined, // TODO
+        .clobbers = undefined, // TODO
+        .rparen = rparen,
+    };
+    return &node.base;
 }
 
-// TODO: EnumLiteral
+// TODO: enum literal not represented in grammar: https://github.com/ziglang/zig/issues/2235
 fn parseEnumLiteral(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented; // TODO
+    const dot = eatToken(it, .Period) orelse return null;
+    const name = (try expectToken(it, tree, .Identifier)) orelse return null;
+
+    const node = try arena.create(Node.EnumLiteral);
+    node.* = Node.EnumLiteral{
+        .base = undefined, // TODO: ??
+        .dot = dot,
+        .name = name,
+    };
+    return &node.base;
 }
 
 // AsmOutput <- COLON AsmOutputList AsmInput?
@@ -1316,53 +1342,21 @@ fn parseAssignOp(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
 fn parseCompareOp(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?*Node {
     const ops = Node.InfixOp.Op;
 
-    const AnnotatedOp = struct {
-        token: TokenIndex,
-        op: ops,
+    const token = nextNonCommentToken(it);
+    const op = switch (token.ptr.id) {
+        .EqualEqual => ops{ .EqualEqual = {} },
+        .BangEqual => ops{ .BangEqual = {} },
+        .AngleBracketLeft => ops{ .LessThan = {} },
+        .AngleBracketRight => ops{ .GreaterThan = {} },
+        .AngleBracketLeftEqual => ops{ .LessOrEqual = {} },
+        .AngleBracketRightEqual => ops{ .GreaterOrEqual = {} },
+        else => {
+            _ = rewindTokenIterator(it);
+            return null;
+        },
     };
 
-    const op = if (eatToken(it, .EqualEqual)) |t|
-        AnnotatedOp{
-            .token = t,
-            .op = ops.EqualEqual,
-        }
-    else if (eatToken(it, .BangEqual)) |t|
-        AnnotatedOp{
-            .token = t,
-            .op = ops.BangEqual,
-        }
-    else if (eatToken(it, .AngleBracketLeft)) |t|
-        AnnotatedOp{
-            .token = t,
-            .op = ops.LessThan,
-        }
-    else if (eatToken(it, .AngleBracketRight)) |t|
-        AnnotatedOp{
-            .token = t,
-            .op = ops.GreaterThan,
-        }
-    else if (eatToken(it, .AngleBracketLeftEqual)) |t|
-        AnnotatedOp{
-            .token = t,
-            .op = ops.LessOrEqual,
-        }
-    else if (eatToken(it, .AngleBracketRightEqual)) |t|
-        AnnotatedOp{
-            .token = t,
-            .op = ops.GreaterOrEqual,
-        }
-    else
-        return null;
-
-    const node = try arena.create(Node.InfixOp);
-    node.* = Node.InfixOp{
-        .base = Node{ .id = .InfixOp },
-        .op_token = op.token,
-        .lhs = undefined,
-        .op = op.op,
-        .rhs = undefined,
-    };
-    return &node.base;
+    return try createInfixOp(arena, it.index, op);
 }
 
 // BitwiseOp
@@ -1372,14 +1366,41 @@ fn parseCompareOp(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?
 //      / KEYWORD_orelse
 //      / KEYWORD_catch Payload?
 fn parseBitwiseOp(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented; // TODO
+    const ops = Node.InfixOp.Op;
+
+    const token = nextNonCommentToken(it);
+    const op = switch (token.ptr.id) {
+        .Ampersand => ops{ .BitAnd = {} },
+        .Caret => ops{ .BitXor = {} },
+        .Pipe => ops{ .BitOr = {} },
+        .Keyword_orelse => ops{ .UnwrapOptional = {} },
+        .Keyword_catch => ops{ .Catch = try parsePayload(arena, it, tree) },
+        else => {
+            _ = rewindTokenIterator(it);
+            return null;
+        },
+    };
+
+    return try createInfixOp(arena, it.index, op);
 }
 
 // BitShiftOp
 //     <- LARROW2
 //      / RARROW2
 fn parseBitShiftOp(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented; // TODO
+    const ops = Node.InfixOp.Op;
+
+    const token = nextNonCommentToken(it);
+    const op = switch (token.ptr.id) {
+        .AngleBracketAngleBracketLeft => ops{ .BitShiftLeft = {} },
+        .AngleBracketAngleBracketRight => ops{ .BitShiftRight = {} },
+        else => {
+            _ = rewindTokenIterator(it);
+            return null;
+        },
+    };
+
+    return try createInfixOp(arena, it.index, op);
 }
 
 // AdditionOp
@@ -1389,7 +1410,22 @@ fn parseBitShiftOp(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
 //      / PLUSPERCENT
 //      / MINUSPERCENT
 fn parseAdditionOp(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented; // TODO
+    const ops = Node.InfixOp.Op;
+
+    const token = nextNonCommentToken(it);
+    const op = switch (token.ptr.id) {
+        .Plus => ops{ .Add = {} },
+        .Minus => ops{ .Sub = {} },
+        .PlusPlus => ops{ .ArrayCat = {} },
+        .PlusPercent => ops{ .AddWrap = {} },
+        .MinusPercent => ops{ .SubWrap = {} },
+        else => {
+            _ = rewindTokenIterator(it);
+            return null;
+        },
+    };
+
+    return try createInfixOp(arena, it.index, op);
 }
 
 // MultiplyOp
@@ -1400,7 +1436,23 @@ fn parseAdditionOp(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
 //      / ASTERISK2
 //      / ASTERISKPERCENT
 fn parseMultiplyOp(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented; // TODO
+    const ops = Node.InfixOp.Op;
+
+    const token = nextNonCommentToken(it);
+    const op = switch (token.ptr.id) {
+        .PipePipe => ops{ .BoolOr = {} },
+        .Asterisk => ops{ .Mult = {} },
+        .Slash => ops{ .Div = {} },
+        .Percent => ops{ .Mod = {} },
+        .AsteriskAsterisk => ops{ .ArrayMult = {} },
+        .AsteriskPercent => ops{ .MultWrap = {} },
+        else => {
+            _ = rewindTokenIterator(it);
+            return null;
+        },
+    };
+
+    return try createInfixOp(arena, it.index, op);
 }
 
 // PrefixOp
@@ -1412,7 +1464,31 @@ fn parseMultiplyOp(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
 //      / KEYWORD_try
 //      / KEYWORD_await
 fn parsePrefixOp(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented; // TODO
+    const ops = Node.PrefixOp.Op;
+
+    const token = nextNonCommentToken(it);
+    const op = switch (token.ptr.id) {
+        .Bang => ops{ .BoolNot = {} },
+        .Minus => ops{ .Negation = {} },
+        .Tilde => ops{ .BitNot = {} },
+        .MinusPercent => ops{ .NegationWrap = {} },
+        .Ampersand => ops{ .AddressOf = {} },
+        .Keyword_try => ops{ .Try = {} },
+        .Keyword_await => ops{ .Await = {} },
+        else => {
+            _ = rewindTokenIterator(it);
+            return null;
+        },
+    };
+
+    const node = try arena.create(Node.PrefixOp);
+    node.* = Node.PrefixOp{
+        .base = Node{ .id = .PrefixOp },
+        .op_token = it.index,
+        .op = op,
+        .rhs = undefined,
+    };
+    return &node.base;
 }
 
 // TODO: last choice allows for `*const volatile volatile const`, `*align(4) align(8) align(4)` etc.
@@ -1520,7 +1596,34 @@ fn parsePrefixTypeOp(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node
 //      / DOTASTERISK
 //      / DOTQUESTIONMARK
 fn parseSuffixOp(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented; // TODO
+    if (eatToken(it, .LBracket)) |_| {
+        const expr_node = (try expectNode(arena, it, tree, parseExpr, Error{
+            .ExpectedExpr = Error.ExpectedExpr{ .token = it.peek().?.start },
+        })) orelse return null;
+        const dots = eatToken(it, .Ellipsis2);
+        const expr = if (dots) |_| try parseExpr(arena, it, tree) else null;
+        _ = (try expectToken(it, tree, .RBracket)) orelse return null;
+        return error.NotImplemented; // TODO
+    }
+
+    if (eatToken(it, .Period)) |_| {
+        const identifier = (try expectToken(it, tree, .Identifier)) orelse return null;
+        return error.NotImplemented; // TODO
+    }
+
+    // TODO: stage2 does not have a single token for .* or .?
+
+    // if (eatToken(it, .DotAsterisk)) |_| {
+    //     const identifier = (try expectToken(it, tree, .Identifier)) orelse return null;
+    //     return error.NotImplemented; // TODO
+    // }
+
+    // if (eatToken(it, .DotQuestionMark)) |dot| {
+    //     const identifier = (try expectToken(it, tree, .Identifier)) orelse return null;
+    //     return error.NotImplemented; // TODO
+    // }
+
+    return null;
 }
 
 // AsyncPrefix <- KEYWORD_async (LARROW PrefixExpr RARROW)?
@@ -1857,6 +1960,18 @@ const BinOpChain = enum {
     Once,
     Infinitely,
 };
+
+fn createInfixOp(arena: *Allocator, index: TokenIndex, op: Node.InfixOp.Op) !*Node {
+    const node = try arena.create(Node.InfixOp);
+    node.* = Node.InfixOp{
+        .base = Node{ .id = .InfixOp },
+        .op_token = index,
+        .lhs = undefined,
+        .op = op,
+        .rhs = undefined,
+    };
+    return &node.base;
+}
 
 fn eatToken(it: *TokenIterator, id: Token.Id) ?TokenIndex {
     return if (it.peek().?.id == id) nextNonCommentToken(it).index else null;
