@@ -212,12 +212,7 @@ fn parseFnProto(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     const fn_token = eatToken(it, .Keyword_fn) orelse return null;
     const name_token = eatToken(it, .Identifier);
     const lparen = (try expectToken(it, tree, .LParen)) orelse return null;
-    const params = (try parseParamDeclList(arena, it, tree)) orelse {
-        try tree.errors.push(Error{
-            .ExpectedParamList = Error.ExpectedParamList{ .token = it.peek().?.start },
-        });
-        return null;
-    };
+    const params = try parseParamDeclList(arena, it, tree);
     const rparen = (try expectToken(it, tree, .RParen)) orelse return null;
     const alignment_node = try parseByteAlign(arena, it, tree);
     const section_expr = try parseLinkSection(arena, it, tree);
@@ -1287,8 +1282,10 @@ fn parseAsmInputItem(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node
 }
 
 // AsmClobbers <- COLON StringList
-fn parseAsmClobbers(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented; // TODO
+// StringList <- (STRINGLITERAL COMMA)* STRINGLITERAL?
+fn parseAsmClobbers(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?Node.Asm.ClobberList {
+    _ = eatToken(it, .Colon) orelse return null;
+    return try ListParser(Node.Asm.ClobberList, parseStringLiteral).parse(arena, it, tree);
 }
 
 // BreakLabel <- COLON IDENTIFIER
@@ -1784,10 +1781,11 @@ fn parseAsyncPrefix(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node 
 // ExprList <- (Expr COMMA)* Expr?
 fn parseFnCallArguments(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?Node.SuffixOp.Op.Call.ParamList {
     _ = eatToken(it, .LParen) orelse return null;
-    var list = Node.SuffixOp.Op.Call.ParamList.init(arena);
-    while ((try parseExpr(arena, it, tree))) |node| try list.push(node);
-    _ = (try expectToken(it, tree, .RParen)) orelse return null;
-    return list;
+    return try ListParser(Node.SuffixOp.Op.Call.ParamList, parseExpr).parse(arena, it, tree);
+    // var list = Node.SuffixOp.Op.Call.ParamList.init(arena);
+    // while ((try parseExpr(arena, it, tree))) |node| try list.push(node);
+    // _ = (try expectToken(it, tree, .RParen)) orelse return null;
+    // return list;
 }
 
 // ArrayTypeStart <- LBRACKET Expr? RBRACKET
@@ -1918,27 +1916,22 @@ fn parseIdentifierList(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyer
 
 // SwitchProngList <- (SwitchProng COMMA)* SwitchProng?
 fn parseSwitchProngList(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?*Node {
-    return error.NotImplemented; // TODO
+    return try ListParser(Node.SwitchCase.ItemList, parseSwitchProng).parse(arena, it, tree);
 }
 
 // AsmOutputList <- (AsmOutputItem COMMA)* AsmOutputItem?
 fn parseAsmOutputList(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?*Node {
-    return error.NotImplemented; // TODO
+    return try ListParser(Node.Asm.OutputList, parseAsmOutputItem).parse(arena, it, tree);
 }
 
 // AsmInputList <- (AsmInputItem COMMA)* AsmInputItem?
 fn parseAsmInputList(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?*Node {
-    return error.NotImplemented; // TODO
-}
-
-// StringList <- (STRINGLITERAL COMMA)* STRINGLITERAL?
-fn parseStringList(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?*Node {
-    return error.NotImplemented; // TODO
+    return try ListParser(Node.Asm.InputList, parseAsmInputItem).parse(arena, it, tree);
 }
 
 // ParamDeclList <- (ParamDecl COMMA)* ParamDecl?
-fn parseParamDeclList(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?Node.FnProto.ParamList {
-    return error.NotImplemented; // TODO
+fn parseParamDeclList(arena: *Allocator, it: *TokenIterator, tree: *Tree) !Node.FnProto.ParamList {
+    return try ListParser(Node.FnProto.ParamList, parseParamDecl).parse(arena, it, tree);
 }
 
 // TODO: don't use anyerror
@@ -2158,6 +2151,19 @@ fn expectNode(
     const node = try parseFn(arena, it, tree);
     if (node == null) try tree.errors.push(err);
     return node;
+}
+
+fn ListParser(comptime L: type, comptime nodeParseFn: var) type {
+    return struct {
+        pub fn parse(arena: *Allocator, it: *TokenIterator, tree: *Tree) !L {
+            var list = L.init(arena);
+            while (try nodeParseFn(arena, it, tree)) |node| {
+                try list.push(node);
+                if (eatToken(it, .Colon) == null) break;
+            }
+            return list;
+        }
+    };
 }
 
 test "std.zig.parser" {
