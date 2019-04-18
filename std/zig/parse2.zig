@@ -976,7 +976,7 @@ fn parseSuffixExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
         const node = try arena.create(Node.SuffixOp);
         node.* = Node.SuffixOp{
             .base = Node{ .id = .SuffixOp },
-            .lhs = undefined, // TODO: *Node
+            .lhs = child,
             .op = Node.SuffixOp.Op{
                 .Call = Node.SuffixOp.Op.Call{
                     .params = params,
@@ -988,19 +988,34 @@ fn parseSuffixExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
         return &node.base;
     }
 
-    if (try parsePrimaryTypeExpr(arena, it, tree)) |node| {
+    if (try parsePrimaryTypeExpr(arena, it, tree)) |expr| {
+        var res = expr;
+
         while (true) {
-            if (try parseSuffixOp(arena, it, tree)) |suffix_op| {
-                // TODO
+            if (try parseSuffixOp(arena, it, tree)) |suffix| {
+                suffix.cast(Node.SuffixOp).?.lhs = res;
+                res = suffix;
                 continue;
-            } else if (try parseFnCallArguments(arena, it, tree)) |args| {
-                // TODO
+            } else if (try parseFnCallArguments(arena, it, tree)) |params| {
+                const call = try arena.create(Node.SuffixOp);
+                call.* = Node.SuffixOp{
+                    .base = Node{ .id = .SuffixOp },
+                    .lhs = res,
+                    .op = Node.SuffixOp.Op{
+                        .Call = Node.SuffixOp.Op.Call{
+                            .params = params,
+                            .async_attr = null,
+                        },
+                    },
+                    .rtoken = undefined, // TODO: TokenIndex HMMMMM.
+                };
+                res = &call.base;
                 continue;
             }
             break;
         }
         // TODO
-        return node;
+        return res;
     }
 
     return null;
@@ -1050,13 +1065,13 @@ fn parsePrimaryTypeExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*N
     if (try parseIfTypeExpr(arena, it, tree)) |node| return node;
     // TODO parse integer
     if (eatToken(it, .Keyword_anyerror)) |token| {
-        // TODO
+        return error.NotImplemented; // TODO
     }
     if (eatToken(it, .Keyword_comptime)) |token| {
-        // TODO
+        return error.NotImplemented; // TODO
     }
     if (eatToken(it, .Keyword_error)) |token| {
-        // TODO
+        return error.NotImplemented; // TODO
     }
     if (eatToken(it, .Keyword_false)) |token| {
         const node = try arena.create(Node.BoolLiteral);
@@ -1067,10 +1082,10 @@ fn parsePrimaryTypeExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*N
         return &node.base;
     }
     if (eatToken(it, .Keyword_null)) |token| {
-        // TODO
+        return error.NotImplemented; // TODO
     }
     if (eatToken(it, .Keyword_promise)) |token| {
-        // TODO
+        return error.NotImplemented; // TODO
     }
     if (eatToken(it, .Keyword_true)) |token| {
         const node = try arena.create(Node.BoolLiteral);
@@ -1081,16 +1096,15 @@ fn parsePrimaryTypeExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*N
         return &node.base;
     }
     if (eatToken(it, .Keyword_undefined)) |token| {
-        // TODO
+        return error.NotImplemented; // TODO
     }
     if (eatToken(it, .Keyword_unreachable)) |token| {
-        // TODO
+        return error.NotImplemented; // TODO
     }
     if (try parseStringLiteral(arena, it, tree)) |node| return node;
     if (try parseSwitchExpr(arena, it, tree)) |node| return node;
 
-    // return null;
-    return error.NotImplemented;
+    return null;
 }
 
 // ContainerDecl <- (KEYWORD_extern / KEYWORD_packed)? ContainerDeclAuto
