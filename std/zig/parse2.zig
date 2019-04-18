@@ -589,7 +589,7 @@ fn parseBoolOrExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
         arena,
         it,
         tree,
-        binOpSimpleParser(.Keyword_or, Node.InfixOp.Op.BoolOr).parse,
+        SimpleBinOpParser(.Keyword_or, Node.InfixOp.Op.BoolOr).parse,
         parseBoolAndExpr,
         .Infinitely,
     );
@@ -601,7 +601,7 @@ fn parseBoolAndExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node 
         arena,
         it,
         tree,
-        binOpSimpleParser(.Keyword_and, Node.InfixOp.Op.BoolAnd).parse,
+        SimpleBinOpParser(.Keyword_and, Node.InfixOp.Op.BoolAnd).parse,
         parseCompareExpr,
         .Infinitely,
     );
@@ -2054,17 +2054,17 @@ fn parseBinOpExpr(
     return res;
 }
 
-fn binOpSimpleParser(token: Token.Id, op: Node.InfixOp.Op) type {
+fn SimpleBinOpParser(token: Token.Id, op: Node.InfixOp.Op) type {
     return struct {
         pub fn parse(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
             const op_token = eatToken(it, token) orelse return null;
             const node = try arena.create(Node.InfixOp);
             node.* = Node.InfixOp{
                 .base = Node{ .id = .InfixOp },
-                .op_token = op_token, // TODO
-                .lhs = undefined, // TODO
+                .op_token = op_token,
+                .lhs = undefined, // set by caller
                 .op = op,
-                .rhs = undefined, // TODO
+                .rhs = undefined, // set by caller
             };
             return &node.base;
         }
