@@ -454,7 +454,7 @@ fn parseIfStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node 
 }
 
 // LabeledStatement <- BlockLabel? (Block / LoopStatement)
-fn parseLabeledStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
+fn parseLabeledStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?*Node {
     const label_token = parseBlockLabel(arena, it, tree);
 
     if (try parseBlock(arena, it, tree)) |node| {
@@ -773,7 +773,7 @@ fn parseIfExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
 }
 
 // Block <- LBRACE Statement* RBRACE
-fn parseBlock(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?*Node {
+fn parseBlock(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     const lbrace = eatToken(it, .LBrace) orelse return null;
 
     var statements = Node.Block.StatementList.init(arena);
@@ -1482,7 +1482,7 @@ fn parseAssignOp(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
 //      / RARROW
 //      / LARROWEQUAL
 //      / RARROWEQUAL
-fn parseCompareOp(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?*Node {
+fn parseCompareOp(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     const ops = Node.InfixOp.Op;
 
     const token = nextNonCommentToken(it);
@@ -1924,22 +1924,22 @@ fn parseByteAlign(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
 }
 
 // IdentifierList <- (IDENTIFIER COMMA)* IDENTIFIER?
-fn parseIdentifierList(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?*Node {
+fn parseIdentifierList(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     return error.NotImplemented; // TODO
 }
 
 // SwitchProngList <- (SwitchProng COMMA)* SwitchProng?
-fn parseSwitchProngList(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?*Node {
+fn parseSwitchProngList(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     return try ListParser(Node.SwitchCase.ItemList, parseSwitchProng).parse(arena, it, tree);
 }
 
 // AsmOutputList <- (AsmOutputItem COMMA)* AsmOutputItem?
-fn parseAsmOutputList(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?*Node {
+fn parseAsmOutputList(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     return try ListParser(Node.Asm.OutputList, parseAsmOutputItem).parse(arena, it, tree);
 }
 
 // AsmInputList <- (AsmInputItem COMMA)* AsmInputItem?
-fn parseAsmInputList(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?*Node {
+fn parseAsmInputList(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     return try ListParser(Node.Asm.InputList, parseAsmInputItem).parse(arena, it, tree);
 }
 
@@ -2019,8 +2019,7 @@ fn parsePrefixOpExpr(
     tree: *Tree,
     opParseFn: ParseFn,
     childParseFn: ParseFn,
-    // TODO: don't use anyerror
-) anyerror!?*Node {
+) !?*Node {
     if (try opParseFn(arena, it, tree)) |op| {
         const child = (try expectNode(
             arena,
@@ -2144,14 +2143,13 @@ const AnnotatedToken = struct {
     ptr: *Token,
 };
 
-// TODO: don't use anyerror
 fn expectNode(
     arena: *Allocator,
     it: *TokenIterator,
     tree: *Tree,
     parseFn: ParseFn,
     err: Error, // if parsing fails
-) anyerror!?*Node {
+) !?*Node {
     const node = try parseFn(arena, it, tree);
     if (node == null) try tree.errors.push(err);
     return node;
