@@ -880,9 +880,9 @@ fn parseWhileExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
 // CurlySuffixExpr <- TypeExpr InitList?
 fn parseCurlySuffixExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     const type_expr = (try parseTypeExpr(arena, it, tree)) orelse return null;
-    const init_list = try parseInitList(arena, it, tree);
-
-    return error.NotImplemented; // TODO
+    const init_list = (try parseInitList(arena, it, tree)) orelse return type_expr;
+    init_list.cast(Node.SuffixOp).?.lhs = type_expr;
+    return init_list;
 }
 
 // InitList
@@ -891,9 +891,26 @@ fn parseCurlySuffixExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*N
 //      / LBRACE RBRACE
 fn parseInitList(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     const lbrace = eatToken(it, .LBrace) orelse return null;
+
     if (try parseFieldInit(arena, it, tree)) |field_init| {
-        return error.NotImplemented; // TODO
+        const node = try arena.create(Node.SuffixOp);
+        node.* = Node.SuffixOp{
+            .base = Node{ .id = .SuffixOp },
+            .lhs = undefined, // set by caller
+            .op = Node.SuffixOp.Op{ .StructInitializer = Node.SuffixOp.Op.InitList.init(arena) },
+            .rtoken = undefined, // set below
+        };
+        try node.op.StructInitializer.push(field_init);
+
+        while (eatToken(it, .Comma)) |_| {
+            const next_field = (try parseFieldInit(arena, it, tree)) orelse break;
+            try node.op.StructInitializer.push(next_field);
+        }
+
+        node.rtoken = (try expectToken(it, tree, .RBrace)) orelse return null;
+        return &node.base;
     }
+
     if (try parseExpr(arena, it, tree)) |expr| {
         return error.NotImplemented; // TODO
     }
@@ -910,6 +927,7 @@ fn parseTypeExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
 // ErrorUnionExpr <- SuffixExpr (EXCLAMATIONMARK TypeExpr)?
 fn parseErrorUnionExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     const suffix_expr = (try parseSuffixExpr(arena, it, tree)) orelse return null;
+
     if (eatToken(it, .Bang)) |bang| {
         const type_expr = (try expectNode(arena, it, tree, parseTypeExpr, Error{
             .ExpectedTypeExpr = Error.ExpectedTypeExpr{ .token = it.peek().?.start },
@@ -932,20 +950,47 @@ fn parseErrorUnionExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*No
 //     <- AsyncPrefix PrimaryTypeExpr SuffixOp* FnCallArguments
 //      / PrimaryTypeExpr (SuffixOp / FnCallArguments)*
 fn parseSuffixExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    if (try parseAsyncPrefix(arena, it, tree)) |node| {
-        const type_expr = (try expectNode(arena, it, tree, parsePrimaryTypeExpr, Error{
+    if (try parseAsyncPrefix(arena, it, tree)) |async_node| {
+        // TODO: Implement hack for parsing `async fn ...` in ast_parse_suffix_expr
+        var child = (try expectNode(arena, it, tree, parsePrimaryTypeExpr, Error{
             // TODO: different error?
             .ExpectedPrimaryExpr = Error.ExpectedPrimaryExpr{ .token = it.peek().?.start },
         })) orelse return null;
-        while (true) {
-            // TODO suffixop
-            break;
+
+        while (try parseSuffixOp(arena, it, tree)) |suffix| {
+            // TODO: all of this, maybe
+            switch (suffix.cast(Node.SuffixOp).?.op) {
+                .Call => |op| {},
+                .ArrayAccess => |op| {},
+                .Slice => |op| {},
+                .ArrayInitializer => |op| {},
+                .StructInitializer => |op| {},
+                .Deref => |op| {},
+                .UnwrapOptional => |op| {},
+            }
+            child = suffix;
         }
-        const args = (try expectNode(arena, it, tree, parseFnCallArguments, Error{
-            // TODO: different error?
-            .ExpectedParamList = Error.ExpectedParamList{ .token = it.peek().?.start },
-        })) orelse return null;
-        // TODO fill out node
+
+        const params = (try parseFnCallArguments(arena, it, tree)) orelse {
+            try tree.errors.push(Error{
+                .ExpectedParamList = Error.ExpectedParamList{ .token = it.peek().?.start },
+            });
+            return null;
+        };
+
+        const node = try arena.create(Node.SuffixOp);
+        node.* = Node.SuffixOp{
+            .base = Node{ .id = .SuffixOp },
+            .lhs = undefined, // TODO: *Node
+            .op = Node.SuffixOp.Op{
+                .Call = Node.SuffixOp.Op.Call{
+                    .params = params,
+                    .async_attr = async_node.cast(Node.AsyncAttribute).?,
+                },
+            },
+            .rtoken = undefined, // TODO TokenIndex ehhhhhh????
+        };
+        return &node.base;
     }
 
     if (try parsePrimaryTypeExpr(arena, it, tree)) |node| {
@@ -1260,7 +1305,21 @@ fn parseBlockLabel(arena: *Allocator, it: *TokenIterator, tree: *Tree) ?TokenInd
 
 // FieldInit <- DOT IDENTIFIER EQUAL Expr
 fn parseFieldInit(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented; // TODO
+    const period_token = eatToken(it, .Period) orelse return null;
+    const name_token = (try expectToken(it, tree, .Identifier)) orelse return null;
+    const eq_token = (try expectToken(it, tree, .Equal)) orelse return null;
+    const expr_node = (try expectNode(arena, it, tree, parseExpr, Error{
+        .ExpectedExpr = Error.ExpectedExpr{ .token = it.peek().?.start },
+    })) orelse return null;
+
+    const node = try arena.create(Node.FieldInitializer);
+    node.* = Node.FieldInitializer{
+        .base = Node{ .id = .FieldInitializer },
+        .period_token = period_token,
+        .name_token = name_token,
+        .expr = expr_node,
+    };
+    return &node.base;
 }
 
 // WhileContinueExpr <- COLON LPAREN AssignExpr RPAREN
@@ -1722,8 +1781,13 @@ fn parseAsyncPrefix(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node 
 }
 
 // FnCallArguments <- LPAREN ExprList RPAREN
-fn parseFnCallArguments(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented; // TODO
+// ExprList <- (Expr COMMA)* Expr?
+fn parseFnCallArguments(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?Node.SuffixOp.Op.Call.ParamList {
+    _ = eatToken(it, .LParen) orelse return null;
+    var list = Node.SuffixOp.Op.Call.ParamList.init(arena);
+    while ((try parseExpr(arena, it, tree))) |node| try list.push(node);
+    _ = (try expectToken(it, tree, .RParen)) orelse return null;
+    return list;
 }
 
 // ArrayTypeStart <- LBRACKET Expr? RBRACKET
@@ -1874,11 +1938,6 @@ fn parseStringList(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!
 
 // ParamDeclList <- (ParamDecl COMMA)* ParamDecl?
 fn parseParamDeclList(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?Node.FnProto.ParamList {
-    return error.NotImplemented; // TODO
-}
-
-// ExprList <- (Expr COMMA)* Expr?
-fn parseExprList(arena: *Allocator, it: *TokenIterator, tree: *Tree) anyerror!?*Node {
     return error.NotImplemented; // TODO
 }
 
