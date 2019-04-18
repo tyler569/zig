@@ -2033,25 +2033,17 @@ fn parseBinOpExpr(
     chain: BinOpChain,
 ) !?*Node {
     var res = (try childParseFn(arena, it, tree)) orelse return null;
-    while (true) {
-        // TODO! Some stuff
-        const op = (try opParseFn(arena, it, tree)) orelse break;
+
+    while (try opParseFn(arena, it, tree)) |node| {
         const right = (try expectNode(arena, it, tree, childParseFn, Error{
             .InvalidToken = Error.InvalidToken{ .token = it.peek().?.start },
         })) orelse return null;
         const left = res;
-        res = op;
-        switch (op.id) {
-            // .InfixOp => |infix| {
-            //     infix.lhs = left;
-            //     infix.rhs = right;
-            //     break;
-            // },
-            // another => {
-            //     break;
-            // },
-            else => unreachable,
-        }
+        res = node;
+
+        const op = node.cast(Node.InfixOp).?;
+        op.*.lhs = left;
+        op.*.rhs = right;
 
         switch (chain) {
             .Once => break,
@@ -2059,9 +2051,7 @@ fn parseBinOpExpr(
         }
     }
 
-    // TODO
-
-    return error.NotImplemented;
+    return res;
 }
 
 fn binOpSimpleParser(token: Token.Id, op: Node.InfixOp.Op) type {
