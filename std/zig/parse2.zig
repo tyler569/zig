@@ -44,10 +44,10 @@ fn parseRoot(arena: *Allocator, it: *TokenIterator, tree: *Tree) !*Node.Root {
     const node = try arena.create(Node.Root);
     node.* = Node.Root{
         .base = Node{ .id = .Root },
-        .decls = undefined, // TODO: used upon error?
+        .decls = undefined,
         .doc_comments = null,
         .shebang = null,
-        .eof_token = undefined, // TODO: used upon error?
+        .eof_token = undefined,
     };
     node.decls = (try parseContainerMembers(arena, it, tree)) orelse return node;
     node.eof_token = eatToken(it, .Eof) orelse blk: {
@@ -218,7 +218,7 @@ fn parseFnProto(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     const section_expr = try parseLinkSection(arena, it, tree);
     const exclamation_token = eatToken(it, .Bang);
 
-    // (KW_var / TypeExpr)
+    // TODO: (KW_var / TypeExpr)
 
     const fn_proto_node = try arena.create(Node.FnProto);
     fn_proto_node.* = Node.FnProto{
