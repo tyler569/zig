@@ -1121,13 +1121,17 @@ fn parseContainerDecl(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Nod
 fn parseErrorSetDecl(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     const error_token = eatToken(it, .Keyword_error) orelse return null;
     _ = (try expectToken(it, tree, .LBrace)) orelse return null;
-    const list = (try expectNode(arena, it, tree, parseIdentifierList, Error{
-        // TODO
-        .InvalidToken = Error.InvalidToken{ .token = it.peek().?.start },
-    })) orelse return null;
-    _ = (try expectToken(it, tree, .RBrace)) orelse return null;
+    const decls = try parseIdentifierList(arena, it, tree);
+    const rbrace = (try expectToken(it, tree, .RBrace)) orelse return null;
 
-    return error.NotImplemented; // TODO
+    const node = try arena.create(Node.ErrorSetDecl);
+    node.* = Node.ErrorSetDecl{
+        .base = Node{ .id = .ErrorSetDecl },
+        .error_token = error_token,
+        .decls = decls,
+        .rbrace_token = rbrace,
+    };
+    return &node.base;
 }
 
 // GroupedExpr <- LPAREN Expr RPAREN
@@ -1944,8 +1948,9 @@ fn parseByteAlign(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
 }
 
 // IdentifierList <- (IDENTIFIER COMMA)* IDENTIFIER?
-fn parseIdentifierList(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented; // TODO
+fn parseIdentifierList(arena: *Allocator, it: *TokenIterator, tree: *Tree) !Node.ErrorSetDecl.DeclList {
+    // ErrorSetDecl.DeclList is used since ErrorSetDecl is the only caller of this function.
+    return try ListParser(Node.ErrorSetDecl.DeclList, parseIdentifier).parse(arena, it, tree);
 }
 
 // SwitchProngList <- (SwitchProng COMMA)* SwitchProng?
@@ -1972,6 +1977,16 @@ fn parseParamDeclList(arena: *Allocator, it: *TokenIterator, tree: *Tree) !Node.
 const ParseFn = fn (*Allocator, *TokenIterator, *Tree) anyerror!?*Node;
 
 // Helper parsers not included in the grammar
+
+fn parseIdentifier(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
+    const token = eatToken(it, .Identifier) orelse return null;
+    const node = try arena.create(Node.Identifier);
+    node.* = Node.Identifier{
+        .base = Node{ .id = .Identifier },
+        .token = token,
+    };
+    return &node.base;
+}
 
 // string literal or multiline string literal
 fn parseStringLiteral(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
