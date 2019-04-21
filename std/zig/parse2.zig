@@ -1057,13 +1057,13 @@ fn parsePrimaryTypeExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*N
 
     if (try parseContainerDecl(arena, it, tree)) |node| return node;
     if (try parseErrorSetDecl(arena, it, tree)) |node| return node;
-    // TODO parse float
+    if (try parseFloatLiteral(arena, it, tree)) |node| return node;
     if (try parseFnProto(arena, it, tree)) |node| return node;
     if (try parseGroupedExpr(arena, it, tree)) |node| return node;
     if (try parseLabeledTypeExpr(arena, it, tree)) |node| return node;
     // TODO parse identifier
     if (try parseIfTypeExpr(arena, it, tree)) |node| return node;
-    // TODO parse integer
+    if (try parseIntegerLiteral(arena, it, tree)) |node| return node;
     if (eatToken(it, .Keyword_anyerror)) |token| {
         return error.NotImplemented; // TODO
     }
@@ -2001,7 +2001,23 @@ fn parseStringLiteral(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Nod
 }
 
 fn parseIntegerLiteral(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented;
+    const token = eatToken(it, .IntegerLiteral) orelse return null;
+    const node = try arena.create(Node.IntegerLiteral);
+    node.* = Node.IntegerLiteral{
+        .base = Node{ .id = .IntegerLiteral },
+        .token = token,
+    };
+    return &node.base;
+}
+
+fn parseFloatLiteral(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
+    const token = eatToken(it, .FloatLiteral) orelse return null;
+    const node = try arena.create(Node.FloatLiteral);
+    node.* = Node.FloatLiteral{
+        .base = Node{ .id = .FloatLiteral },
+        .token = token,
+    };
+    return &node.base;
 }
 
 // try
