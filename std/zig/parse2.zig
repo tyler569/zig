@@ -218,7 +218,35 @@ fn parseFnProto(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     const section_expr = try parseLinkSection(arena, it, tree);
     const exclamation_token = eatToken(it, .Bang);
 
-    // TODO: (KW_var / TypeExpr)
+    const return_type_expr = blk: {
+        if (eatToken(it, .Keyword_var)) |var_token| {
+            const node = try arena.create(Node.VarType);
+            node.* = Node.VarType{
+                .base = Node{ .id = .VarType },
+                .token = var_token,
+            };
+        }
+        break :blk (try expectNode(arena, it, tree, parseTypeExpr, Error{
+            .ExpectedReturnType = Error.ExpectedReturnType{ .token = it.peek().?.start },
+        })) orelse return null;
+    };
+
+    // TODO: Based on this rule, `!var` is an acceptable return type, but there is no usage
+    // or coverage of that yet. The grammar also does not include `Keyword_var` as a choice
+    // for PrimaryTypeExpr, but the iterative stage2 parser treats it as one, which actually
+    // makes more sense given the return type rule above. Clarify this with @Hejsil.
+    // Alternative rule, if `var` were to be included in PrimaryTypeExpr (I think):
+    //
+    // - FnProto <- FnCC? KEYWORD_fn IDENTIFIER? LPAREN ParamDeclList RPAREN ByteAlign? LinkSection? EXCLAMATIONMARK? (KEYWORD_var / TypeExpr)
+    // + FnProto <- FnCC? KEYWORD_fn IDENTIFIER? LPAREN ParamDeclList RPAREN ByteAlign? LinkSection? EXCLAMATIONMARK? PrimaryTypeExpr
+    const return_type = if (exclamation_token != null)
+        Node.FnProto.ReturnType{
+            .InferErrorSet = return_type_expr,
+        }
+    else
+        Node.FnProto.ReturnType{
+            .Explicit = return_type_expr,
+        };
 
     const fn_proto_node = try arena.create(Node.FnProto);
     fn_proto_node.* = Node.FnProto{
@@ -228,7 +256,7 @@ fn parseFnProto(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
         .fn_token = fn_token,
         .name_token = name_token,
         .params = params,
-        .return_type = undefined, // TODO ReturnType
+        .return_type = return_type,
         .var_args_token = undefined, // TODO ?TokenIndex
         .extern_export_inline_token = null,
         .cc_token = cc_token,
