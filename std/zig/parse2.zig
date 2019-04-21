@@ -1236,7 +1236,25 @@ fn parseWhileTypeExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Nod
 
 // SwitchExpr <- KEYWORD_switch LPAREN Expr RPAREN LBRACE SwitchProngList RBRACE
 fn parseSwitchExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented; // TODO
+    const switch_token = eatToken(it, .Keyword_switch) orelse return null;
+    _ = (try expectToken(it, tree, .LParen)) orelse return null;
+    const expr_node = (try expectNode(arena, it, tree, parseExpr, Error{
+        .ExpectedExpr = Error.ExpectedExpr{ .token = it.peek().?.start },
+    })) orelse return null;
+    _ = (try expectToken(it, tree, .RParen)) orelse return null;
+    _ = (try expectToken(it, tree, .LBrace)) orelse return null;
+    const cases = try parseSwitchProngList(arena, it, tree);
+    const rbrace = (try expectToken(it, tree, .RBrace)) orelse return null;
+
+    const node = try arena.create(Node.Switch);
+    node.* = Node.Switch{
+        .base = Node{ .id = .Switch },
+        .switch_token = switch_token,
+        .expr = expr_node,
+        .cases = cases,
+        .rbrace = rbrace,
+    };
+    return &node.base;
 }
 
 // AsmExpr <- KEYWORD_asm KEYWORD_volatile? LPAREN STRINGLITERAL AsmOutput? RPAREN
@@ -1929,8 +1947,8 @@ fn parseIdentifierList(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*No
 }
 
 // SwitchProngList <- (SwitchProng COMMA)* SwitchProng?
-fn parseSwitchProngList(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return try ListParser(Node.SwitchCase.ItemList, parseSwitchProng).parse(arena, it, tree);
+fn parseSwitchProngList(arena: *Allocator, it: *TokenIterator, tree: *Tree) !Node.Switch.CaseList {
+    return try ListParser(Node.Switch.CaseList, parseSwitchProng).parse(arena, it, tree);
 }
 
 // AsmOutputList <- (AsmOutputItem COMMA)* AsmOutputItem?
