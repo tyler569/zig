@@ -238,7 +238,7 @@ fn parseFnProto(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     // Alternative rule, if `var` were to be included in PrimaryTypeExpr (I think):
     //
     // - FnProto <- FnCC? KEYWORD_fn IDENTIFIER? LPAREN ParamDeclList RPAREN ByteAlign? LinkSection? EXCLAMATIONMARK? (KEYWORD_var / TypeExpr)
-    // + FnProto <- FnCC? KEYWORD_fn IDENTIFIER? LPAREN ParamDeclList RPAREN ByteAlign? LinkSection? EXCLAMATIONMARK? PrimaryTypeExpr
+    // + FnProto <- FnCC? KEYWORD_fn IDENTIFIER? LPAREN ParamDeclList RPAREN ByteAlign? LinkSection? EXCLAMATIONMARK? TypeExpr
     const return_type = if (exclamation_token != null)
         Node.FnProto.ReturnType{
             .InferErrorSet = return_type_expr,
