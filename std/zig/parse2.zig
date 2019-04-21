@@ -1873,22 +1873,17 @@ fn parsePtrTypeStart(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node
 
 // ContainerDeclAuto <- ContainerDeclType LBRACE ContainerMembers RBRACE
 fn parseContainerDeclAuto(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    const decl_type = (try parseContainerDeclType(arena, it, tree)) orelse return null;
+    const node = (try parseContainerDeclType(arena, it, tree)) orelse return null;
     const lbrace = (try expectToken(it, tree, .LBrace)) orelse return null;
     const members = (try parseContainerMembers(arena, it, tree)) orelse return null;
     const rbrace = (try expectToken(it, tree, .RBrace)) orelse return null;
 
-    const node = try arena.create(Node.ContainerDecl);
-    node.* = Node.ContainerDecl{
-        .base = Node{ .id = .ContainerDecl },
-        .layout_token = null,
-        .kind_token = undefined, // set by caller
-        .init_arg_expr = Node.ContainerDecl.InitArg{ .None = {} }, // TODO: I don't quite understand this yet
-        .fields_and_decls = members,
-        .lbrace_token = lbrace,
-        .rbrace_token = rbrace,
-    };
-    return &node.base;
+    const decl_type = node.cast(Node.ContainerDecl).?;
+    decl_type.fields_and_decls = members;
+    decl_type.lbrace_token = lbrace;
+    decl_type.rbrace_token = rbrace;
+
+    return node;
 }
 
 // ContainerDeclType
@@ -1896,22 +1891,60 @@ fn parseContainerDeclAuto(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?
 //      / KEYWORD_union (LPAREN (KEYWORD_enum (LPAREN Expr RPAREN)? / Expr) RPAREN)?
 fn parseContainerDeclType(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     const container_type = eatToken(it, .Keyword_struct) orelse eatToken(it, .Keyword_enum);
-    if (container_type) |token| {
-        if (eatToken(it, .LParen)) |_| {
+    if (container_type) |kind_token| {
+        // TODO: https://github.com/ziglang/zig/issues/2330
+        const init_arg_expr = if (eatToken(it, .LParen) != null) blk: {
             const expr = (try expectNode(arena, it, tree, parseExpr, Error{
                 .ExpectedExpr = Error.ExpectedExpr{ .token = it.peek().?.start },
             })) orelse return null;
             _ = (try expectToken(it, tree, .RParen)) orelse return null;
-            // TODO
-            return error.NotImplemented;
-        }
-        // TODO
-        return error.NotImplemented;
+            break :blk Node.ContainerDecl.InitArg{ .Type = expr };
+        } else Node.ContainerDecl.InitArg{ .None = {} };
+
+        const node = try arena.create(Node.ContainerDecl);
+        node.* = Node.ContainerDecl{
+            .base = Node{ .id = .ContainerDecl },
+            .layout_token = null,
+            .kind_token = kind_token,
+            .init_arg_expr = init_arg_expr,
+            .fields_and_decls = undefined, // set by caller
+            .lbrace_token = undefined, // set by caller
+            .rbrace_token = undefined, // set by caller
+        };
+        return &node.base;
     }
 
-    if (eatToken(it, .Keyword_union)) |token| {
-        // TODO
-        return error.NotImplemented;
+    if (eatToken(it, .Keyword_union)) |kind_token| {
+        const init_arg_expr = if (eatToken(it, .LParen) != null) set_init_arg: {
+            if (eatToken(it, .Keyword_enum) != null) {
+                const enum_expr = if (eatToken(it, .LParen) != null) set_enum_expr: {
+                    const expr = (try expectNode(arena, it, tree, parseExpr, Error{
+                        .ExpectedExpr = Error.ExpectedExpr{ .token = it.peek().?.start },
+                    })) orelse return null;
+                    _ = (try expectToken(it, tree, .RParen)) orelse return null;
+                    break :set_enum_expr expr;
+                } else null;
+
+                break :set_init_arg Node.ContainerDecl.InitArg{ .Enum = enum_expr };
+            }
+
+            const expr = (try expectNode(arena, it, tree, parseExpr, Error{
+                .ExpectedExpr = Error.ExpectedExpr{ .token = it.peek().?.start },
+            })) orelse return null;
+            break :set_init_arg Node.ContainerDecl.InitArg{ .Type = expr };
+        } else Node.ContainerDecl.InitArg{ .None = {} };
+
+        const node = try arena.create(Node.ContainerDecl);
+        node.* = Node.ContainerDecl{
+            .base = Node{ .id = .ContainerDecl },
+            .layout_token = null,
+            .kind_token = kind_token,
+            .init_arg_expr = init_arg_expr,
+            .fields_and_decls = undefined, // set by caller
+            .lbrace_token = undefined, // set by caller
+            .rbrace_token = undefined, // set by caller
+        };
+        return &node.base;
     }
 
     return null;
