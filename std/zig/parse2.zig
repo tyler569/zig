@@ -1109,14 +1109,12 @@ fn parsePrimaryTypeExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*N
 
 // ContainerDecl <- (KEYWORD_extern / KEYWORD_packed)? ContainerDeclAuto
 fn parseContainerDecl(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    if (eatToken(it, .Keyword_extern)) |token| {
-        // TODO
-    }
+    const layout_token = eatToken(it, .Keyword_extern) orelse
+        eatToken(it, .Keyword_packed);
 
     const node = (try parseContainerDeclAuto(arena, it, tree)) orelse return null;
-    // TODO
-
-    return error.NotImplemented; // TODO
+    node.cast(Node.ContainerDecl).?.*.layout_token = layout_token;
+    return node;
 }
 
 // ErrorSetDecl <- KEYWORD_error LBRACE IdentifierList RBRACE
@@ -1872,17 +1870,21 @@ fn parsePtrTypeStart(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node
 // ContainerDeclAuto <- ContainerDeclType LBRACE ContainerMembers RBRACE
 fn parseContainerDeclAuto(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     const decl_type = (try parseContainerDeclType(arena, it, tree)) orelse return null;
-    _ = (try expectToken(it, tree, .LBrace)) orelse return null;
-    const members = (try parseContainerMembers(arena, it, tree)) orelse {
-        try tree.errors.push(Error{
-            // TODO
-            .InvalidToken = Error.InvalidToken{ .token = it.peek().?.start },
-        });
-        return null;
-    };
-    _ = (try expectToken(it, tree, .RBrace)) orelse return null;
+    const lbrace = (try expectToken(it, tree, .LBrace)) orelse return null;
+    const members = (try parseContainerMembers(arena, it, tree)) orelse return null;
+    const rbrace = (try expectToken(it, tree, .RBrace)) orelse return null;
 
-    return error.NotImplemented; // TODO
+    const node = try arena.create(Node.ContainerDecl);
+    node.* = Node.ContainerDecl{
+        .base = Node{ .id = .ContainerDecl },
+        .layout_token = null,
+        .kind_token = undefined, // set by caller
+        .init_arg_expr = Node.ContainerDecl.InitArg{ .None = {} }, // TODO: I don't quite understand this yet
+        .fields_and_decls = members,
+        .lbrace_token = lbrace,
+        .rbrace_token = rbrace,
+    };
+    return &node.base;
 }
 
 // ContainerDeclType
