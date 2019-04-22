@@ -1249,18 +1249,21 @@ fn parseIfTypeExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
 //      / BlockLabel? LoopTypeExpr
 fn parseLabeledTypeExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     const label = parseBlockLabel(arena, it, tree);
-    if (label) |label_node| {
-        if (try parseBlock(arena, it, tree)) |block_node| {
-            // TODO
-            return error.NotImplemented;
+
+    if (label) |token| {
+        if (try parseBlock(arena, it, tree)) |node| {
+            node.cast(Node.Block).?.label = token;
+            return node;
         }
     }
 
-    const loop_type_expr = (try parseLoopTypeExpr(arena, it, tree)) orelse return null;
-    // TODO
-    // loop_type_expr.label = label
-
-    return error.NotImplemented; // TODO
+    const node = (try parseLoopTypeExpr(arena, it, tree)) orelse return null;
+    switch (node.id) {
+        .For => node.cast(Node.For).?.label = label,
+        .While => node.cast(Node.While).?.label = label,
+        else => unreachable,
+    }
+    return node;
 }
 
 // LoopTypeExpr <- KEYWORD_inline? (ForTypeExpr / WhileTypeExpr)
