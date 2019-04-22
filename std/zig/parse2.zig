@@ -1285,21 +1285,31 @@ fn parseLoopTypeExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node
 
 // ForTypeExpr <- ForPrefix TypeExpr (KEYWORD_else TypeExpr)?
 fn parseForTypeExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    const for_prefix = (try parseForPrefix(arena, it, tree)) orelse return null;
+    const node = (try parseForPrefix(arena, it, tree)) orelse return null;
+    const for_prefix = node.cast(Node.For).?;
+
     const type_expr = (try expectNode(arena, it, tree, parseTypeExpr, Error{
         .ExpectedTypeExpr = Error.ExpectedTypeExpr{ .token = it.peek().?.start },
     })) orelse return null;
+    for_prefix.body = type_expr;
 
-    if (eatToken(it, .Keyword_else)) |token| {
-        const node = (try expectNode(arena, it, tree, parseTypeExpr, Error{
+    if (eatToken(it, .Keyword_else)) |else_token| {
+        const else_expr = (try expectNode(arena, it, tree, parseTypeExpr, Error{
             .ExpectedTypeExpr = Error.ExpectedTypeExpr{ .token = it.peek().?.start },
-        })) orelse null;
-        return error.NotImplemented;
+        })) orelse return null;
+
+        const else_node = try arena.create(Node.Else);
+        else_node.* = Node.Else{
+            .base = Node{ .id = .Else },
+            .else_token = else_token,
+            .payload = null,
+            .body = else_expr,
+        };
+
+        for_prefix.@"else" = else_node;
     }
 
-    // TODO: do stuff
-
-    return error.NotImplemented; // TODO
+    return node;
 }
 
 // WhileTypeExpr <- WhilePrefix TypeExpr (KEYWORD_else Payload? TypeExpr)?
