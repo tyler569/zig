@@ -1268,16 +1268,13 @@ fn parseLoopTypeExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node
     const inline_token = eatToken(it, .Keyword_inline);
 
     if (try parseForTypeExpr(arena, it, tree)) |node| {
-        // asdf
-        // some shit
-        // TODO
-        return error.NotImplemented;
+        node.cast(Node.For).?.inline_token = inline_token;
+        return node;
     }
 
     if (try parseWhileTypeExpr(arena, it, tree)) |node| {
-        // TODO
-        // fhjewewww
-        return error.NotImplemented;
+        node.cast(Node.While).?.inline_token = inline_token;
+        return node;
     }
 
     return null;
