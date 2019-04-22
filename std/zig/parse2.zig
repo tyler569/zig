@@ -738,13 +738,13 @@ fn parsePrimaryExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node 
     if (try parseAsmExpr(arena, it, tree)) |node| return node;
     if (try parseIfExpr(arena, it, tree)) |node| return node;
 
-    if (eatToken(it, .Keyword_break)) |_| {
+    if (eatToken(it, .Keyword_break)) |token| {
         const label = parseBreakLabel(arena, it, tree);
         const expr_node = try parseExpr(arena, it, tree);
         const node = try arena.create(Node.ControlFlowExpression);
         node.* = Node.ControlFlowExpression{
             .base = Node{ .id = .ControlFlowExpression },
-            .ltoken = undefined, // TODO
+            .ltoken = token,
             .kind = Node.ControlFlowExpression.Kind{ .Break = null }, // TODO
             .rhs = expr_node,
         };
@@ -779,12 +779,12 @@ fn parsePrimaryExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node 
         return &node.base;
     }
 
-    if (eatToken(it, .Keyword_continue)) |_| {
+    if (eatToken(it, .Keyword_continue)) |token| {
         const label = parseBreakLabel(arena, it, tree);
         const node = try arena.create(Node.ControlFlowExpression);
         node.* = Node.ControlFlowExpression{
             .base = Node{ .id = .ControlFlowExpression },
-            .ltoken = undefined, // TODO
+            .ltoken = token,
             .kind = Node.ControlFlowExpression.Kind{ .Continue = null }, // TODO
             .rhs = null,
         };
@@ -811,14 +811,23 @@ fn parsePrimaryExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node 
         const node = try arena.create(Node.ControlFlowExpression);
         node.* = Node.ControlFlowExpression{
             .base = Node{ .id = .ControlFlowExpression },
-            .ltoken = undefined, // TODO
+            .ltoken = token,
             .kind = Node.ControlFlowExpression.Kind.Return,
             .rhs = expr_node,
         };
         return &node.base;
     }
 
-    // TODO: BlockLabel? LoopExpr
+    const label = parseBlockLabel(arena, it, tree);
+    if (try parseLoopExpr(arena, it, tree)) |node| {
+        if (node.cast(Node.For)) |for_node| {
+            for_node.label = label;
+        } else if (node.cast(Node.While)) |while_node| {
+            while_node.label = label;
+        } else unreachable;
+        return node;
+    }
+
     if (try parseBlock(arena, it, tree)) |node| return node;
     if (try parseCurlySuffixExpr(arena, it, tree)) |node| return node;
 
@@ -899,14 +908,14 @@ fn parseLoopExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
 
 // ForExpr <- ForPrefix Expr (KEYWORD_else Expr)?
 fn parseForExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    const for_node = (try parseForPrefix(arena, it, tree)) orelse return null;
+    const node = (try parseForPrefix(arena, it, tree)) orelse return null;
 
     const body_node = (try expectNode(arena, it, tree, parseExpr, Error{
         .ExpectedExpr = Error.ExpectedExpr{ .token = it.peek().?.start },
     })) orelse return null;
-    for_node.cast(Node.For).?.body = body_node;
+    node.cast(Node.For).?.body = body_node;
 
-    if (eatToken(it, .Keyword_else)) |else_token| blk: {
+    if (eatToken(it, .Keyword_else)) |else_token| {
         const body = (try expectNode(arena, it, tree, parseExpr, Error{
             .ExpectedExpr = Error.ExpectedExpr{ .token = it.peek().?.start },
         })) orelse return null;
@@ -919,23 +928,23 @@ fn parseForExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
             .body = body,
         };
 
-        for_node.cast(Node.For).?.@"else" = else_node;
-    } else null;
+        node.cast(Node.For).?.@"else" = else_node;
+    }
 
-    return &for_node.base;
+    return node;
 }
 
 // WhileExpr <- WhilePrefix Expr (KEYWORD_else Payload? Expr)?
 fn parseWhileExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    const while_node = (try parseWhilePrefix(arena, it, tree)) orelse return null;
+    const node = (try parseWhilePrefix(arena, it, tree)) orelse return null;
 
     const body_node = (try expectNode(arena, it, tree, parseExpr, Error{
         .ExpectedExpr = Error.ExpectedExpr{ .token = it.peek().?.start },
     })) orelse return null;
-    while_node.cast(Node.For).?.body = body_node;
+    node.cast(Node.For).?.body = body_node;
 
     if (eatToken(it, .Keyword_else)) |else_token| {
-        const payload = parsePayload();
+        const payload = try parsePayload(arena, it, tree);
         const body = (try expectNode(arena, it, tree, parseExpr, Error{
             .ExpectedExpr = Error.ExpectedExpr{ .token = it.peek().?.start },
         })) orelse return null;
@@ -948,10 +957,10 @@ fn parseWhileExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
             .body = body,
         };
 
-        while_node.cast(Node.While).?.@"else" = else_node;
-    } else null;
+        node.cast(Node.While).?.@"else" = else_node;
+    }
 
-    return &while_node.base;
+    return node;
 }
 
 // CurlySuffixExpr <- TypeExpr InitList?
