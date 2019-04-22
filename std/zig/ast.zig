@@ -112,6 +112,7 @@ pub const Error = union(enum) {
     ExpectedStringLiteral: ExpectedStringLiteral,
     ExpectedIntegerLiteral: ExpectedIntegerLiteral,
     ExpectedPubItem: ExpectedPubItem,
+    ExpectedIdentifier: ExpectedIdentifier,
     ExpectedStatement: ExpectedStatement,
     ExpectedVarDeclOrFn: ExpectedVarDeclOrFn,
     ExpectedVarDecl: ExpectedVarDecl,
@@ -151,6 +152,7 @@ pub const Error = union(enum) {
             @TagType(Error).ExpectedStringLiteral => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedIntegerLiteral => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedPubItem => |*x| return x.render(tokens, stream),
+            @TagType(Error).ExpectedIdentifier => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedStatement => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedVarDeclOrFn => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedVarDecl => |*x| return x.render(tokens, stream),
@@ -192,6 +194,7 @@ pub const Error = union(enum) {
             @TagType(Error).ExpectedStringLiteral => |x| return x.token,
             @TagType(Error).ExpectedIntegerLiteral => |x| return x.token,
             @TagType(Error).ExpectedPubItem => |x| return x.token,
+            @TagType(Error).ExpectedIdentifier => |x| return x.token,
             @TagType(Error).ExpectedStatement => |x| return x.token,
             @TagType(Error).ExpectedVarDeclOrFn => |x| return x.token,
             @TagType(Error).ExpectedVarDecl => |x| return x.token,
@@ -229,6 +232,7 @@ pub const Error = union(enum) {
     pub const InvalidToken = SingleTokenError("Invalid token {}");
     pub const ExpectedStringLiteral = SingleTokenError("Expected string literal, found {}");
     pub const ExpectedIntegerLiteral = SingleTokenError("Expected integer literal, found {}");
+    pub const ExpectedIdentifier = SingleTokenError("Expected identifier, found {}");
     pub const ExpectedStatement = SingleTokenError("Expected statement, found {}");
     pub const ExpectedVarDeclOrFn = SingleTokenError("Expected variable declaration or function, found {}");
     pub const ExpectedVarDecl = SingleTokenError("Expected variable declaration, found {}");

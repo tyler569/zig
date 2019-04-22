@@ -1186,46 +1186,51 @@ fn parsePrimaryTypeExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*N
     if (try parseFnProto(arena, it, tree)) |node| return node;
     if (try parseGroupedExpr(arena, it, tree)) |node| return node;
     if (try parseLabeledTypeExpr(arena, it, tree)) |node| return node;
-    // TODO parse identifier
+    if (try parseIdentifier(arena, it, tree)) |node| return node;
     if (try parseIfTypeExpr(arena, it, tree)) |node| return node;
     if (try parseIntegerLiteral(arena, it, tree)) |node| return node;
-    if (eatToken(it, .Keyword_anyerror)) |token| {
-        return error.NotImplemented; // TODO
-    }
+    if (eatToken(it, .Keyword_anyerror)) |token| return createLiteral(arena, Node.ErrorType, token);
     if (eatToken(it, .Keyword_comptime)) |token| {
-        return error.NotImplemented; // TODO
+        const expr = (try parseTypeExpr(arena, it, tree)) orelse return null;
+        const node = try arena.create(Node.Comptime);
+        node.* = Node.Comptime{
+            .base = Node{ .id = .Comptime },
+            .doc_comments = null,
+            .comptime_token = token,
+            .expr = expr,
+        };
+        return &node.base;
     }
     if (eatToken(it, .Keyword_error)) |token| {
-        return error.NotImplemented; // TODO
-    }
-    if (eatToken(it, .Keyword_false)) |token| {
-        const node = try arena.create(Node.BoolLiteral);
-        node.* = Node.BoolLiteral{
-            .base = Node{ .id = .BoolLiteral },
-            .token = token,
+        const period = (try expectToken(it, tree, .Period)) orelse return null;
+        const identifier = (try expectNode(arena, it, tree, parseIdentifier, Error{
+            .ExpectedIdentifier = Error.ExpectedIdentifier{ .token = it.peek().?.start },
+        })) orelse return null;
+        const global_error_set = try createLiteral(arena, Node.ErrorType, token);
+        const node = try arena.create(Node.InfixOp);
+        node.* = Node.InfixOp{
+            .base = Node{ .id = .InfixOp },
+            .op_token = period,
+            .lhs = global_error_set,
+            .op = Node.InfixOp.Op.Period,
+            .rhs = identifier,
         };
         return &node.base;
     }
-    if (eatToken(it, .Keyword_null)) |token| {
-        return error.NotImplemented; // TODO
-    }
+    if (eatToken(it, .Keyword_false)) |token| return createLiteral(arena, Node.BoolLiteral, token);
+    if (eatToken(it, .Keyword_null)) |token| return createLiteral(arena, Node.NullLiteral, token);
     if (eatToken(it, .Keyword_promise)) |token| {
-        return error.NotImplemented; // TODO
-    }
-    if (eatToken(it, .Keyword_true)) |token| {
-        const node = try arena.create(Node.BoolLiteral);
-        node.* = Node.BoolLiteral{
-            .base = Node{ .id = .BoolLiteral },
-            .token = token,
+        const node = try arena.create(Node.PromiseType);
+        node.* = Node.PromiseType{
+            .base = Node{ .id = .PromiseType },
+            .promise_token = token,
+            .result = null,
         };
         return &node.base;
     }
-    if (eatToken(it, .Keyword_undefined)) |token| {
-        return error.NotImplemented; // TODO
-    }
-    if (eatToken(it, .Keyword_unreachable)) |token| {
-        return error.NotImplemented; // TODO
-    }
+    if (eatToken(it, .Keyword_true)) |token| return createLiteral(arena, Node.BoolLiteral, token);
+    if (eatToken(it, .Keyword_undefined)) |token| return createLiteral(arena, Node.UndefinedLiteral, token);
+    if (eatToken(it, .Keyword_unreachable)) |token| return createLiteral(arena, Node.Unreachable, token);
     if (try parseStringLiteral(arena, it, tree)) |node| return node;
     if (try parseSwitchExpr(arena, it, tree)) |node| return node;
 
@@ -2171,6 +2176,15 @@ fn parseIdentifier(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     return &node.base;
 }
 
+fn createLiteral(arena: *Allocator, comptime T: type, token: TokenIndex) !*Node {
+    const result = try arena.create(T);
+    result.* = T{
+        .base = ast.Node{ .id = Node.typeToId(T) },
+        .token = token,
+    };
+    return &result.base;
+}
+
 // string literal or multiline string literal
 fn parseStringLiteral(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     if (eatToken(it, .StringLiteral)) |token| {
@@ -2218,7 +2232,6 @@ fn parseFloatLiteral(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node
     return &node.base;
 }
 
-// try
 fn parseTry(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     const token = eatToken(it, .Keyword_try) orelse return null;
     const node = try arena.create(Node.PrefixOp);
@@ -2231,7 +2244,6 @@ fn parseTry(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     return &node.base;
 }
 
-// use
 fn parseUse(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     const token = eatToken(it, .Keyword_use) orelse return null;
     const node = try arena.create(Node.Use);
