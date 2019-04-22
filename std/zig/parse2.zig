@@ -1380,18 +1380,33 @@ fn parseForTypeExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node 
 
 // WhileTypeExpr <- WhilePrefix TypeExpr (KEYWORD_else Payload? TypeExpr)?
 fn parseWhileTypeExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    const while_prefix = (try parseWhilePrefix(arena, it, tree)) orelse return null;
+    const node = (try parseWhilePrefix(arena, it, tree)) orelse return null;
+    const while_prefix = node.cast(Node.While).?;
+
     const type_expr = (try expectNode(arena, it, tree, parseTypeExpr, Error{
         .ExpectedTypeExpr = Error.ExpectedTypeExpr{ .token = it.peek().?.start },
-    })) orelse null;
-    const asdf = if (eatToken(it, .Keyword_else)) |else_token| blk: {
+    })) orelse return null;
+    while_prefix.body = type_expr;
+
+    if (eatToken(it, .Keyword_else)) |else_token| {
         const payload = try parsePayload(arena, it, tree);
-        const asdf2 = (try expectNode(arena, it, tree, parseTypeExpr, Error{
+
+        const else_expr = (try expectNode(arena, it, tree, parseTypeExpr, Error{
             .ExpectedTypeExpr = Error.ExpectedTypeExpr{ .token = it.peek().?.start },
         })) orelse return null;
-        break :blk asdf2;
-    } else null;
-    return error.NotImplemented; // TODO
+
+        const else_node = try arena.create(Node.Else);
+        else_node.* = Node.Else{
+            .base = Node{ .id = .Else },
+            .else_token = else_token,
+            .payload = null,
+            .body = else_expr,
+        };
+
+        while_prefix.@"else" = else_node;
+    }
+
+    return node;
 }
 
 // SwitchExpr <- KEYWORD_switch LPAREN Expr RPAREN LBRACE SwitchProngList RBRACE
