@@ -840,7 +840,6 @@ fn parsePrimaryExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node 
     }
 
     if (eatToken(it, .Keyword_return)) |token| {
-        const label = parseBreakLabel(arena, it, tree);
         const expr_node = try parseExpr(arena, it, tree);
         const node = try arena.create(Node.ControlFlowExpression);
         node.* = Node.ControlFlowExpression{
@@ -1497,7 +1496,8 @@ fn parseAsmClobbers(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?Node.A
 
 // BreakLabel <- COLON IDENTIFIER
 fn parseBreakLabel(arena: *Allocator, it: *TokenIterator, tree: *Tree) ?TokenIndex {
-    return null; // TODO
+    _ = eatToken(it,.Colon) orelse return null;
+    return eatToken(it,.Identifier);
 }
 
 // BlockLabel <- IDENTIFIER COLON
