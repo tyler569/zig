@@ -549,32 +549,60 @@ fn parseLoopStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Nod
 //     <- ForPrefix BlockExpr ( KEYWORD_else Statement )?
 //      / ForPrefix AssignExpr ( SEMICOLON / KEYWORD_else Statement )
 fn parseForStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    const for_prefix = (try parseForPrefix(arena, it, tree)) orelse return null;
+    const node = (try parseForPrefix(arena, it, tree)) orelse return null;
+    const for_prefix = node.cast(Node.For).?;
 
     if (try parseBlockExpr(arena, it, tree)) |block_expr_node| {
-        if (eatToken(it, .Keyword_else)) |_| {
+        for_prefix.body = block_expr_node;
+
+        if (eatToken(it, .Keyword_else)) |else_token| {
             const statement_node = (try expectNode(arena, it, tree, parseStatement, Error{
                 .InvalidToken = Error.InvalidToken{ .token = it.peek().?.start },
             })) orelse return null;
-            const for_node = try arena.create(Node.For);
-            for_node.* = Node.For{
-                .base = Node{ .id = .For },
-                .label = undefined, // TODO
-                .inline_token = undefined, // TODO
-                .for_token = undefined, // TODO
-                .array_expr = undefined, // TODO
-                .payload = undefined, // TODO
-                .body = undefined, // TODO
-                .@"else" = undefined, // TODO
-            };
 
-            return &for_node.base;
+            const else_node = try arena.create(Node.Else);
+            else_node.* = Node.Else{
+                .base = Node{ .id = .Else },
+                .else_token = else_token,
+                .payload = null,
+                .body = statement_node,
+            };
+            for_prefix.@"else" = else_node;
+
+            return node;
         }
 
         return block_expr_node;
     }
 
-    return error.NotImplemented; // TODO
+    if (try parseAssignExpr(arena, it, tree)) |assign_expr| {
+        for_prefix.body = assign_expr;
+
+        if (eatToken(it, .Semicolon) != null) return node;
+
+        if (eatToken(it, .Keyword_else)) |else_token| {
+            const statement_node = (try expectNode(arena, it, tree, parseStatement, Error{
+                .ExpectedStatement = Error.ExpectedStatement{ .token = it.peek().?.start },
+            })) orelse return null;
+
+            const else_node = try arena.create(Node.Else);
+            else_node.* = Node.Else{
+                .base = Node{ .id = .Else },
+                .else_token = else_token,
+                .payload = null,
+                .body = statement_node,
+            };
+            for_prefix.@"else" = else_node;
+            return node;
+        }
+
+        try tree.errors.push(Error{
+            .ExpectedSemiOrElse = Error.ExpectedSemiOrElse{ .token = it.peek().?.start },
+        });
+        return null;
+    }
+
+    return null;
 }
 
 // WhileStatement
@@ -1486,16 +1514,30 @@ fn parseWhilePrefix(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node 
 // ForPrefix <- KEYWORD_for LPAREN Expr RPAREN PtrIndexPayload
 fn parseForPrefix(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     const for_token = eatToken(it, .Keyword_for) orelse return null;
+
     _ = (try expectToken(it, tree, .LParen)) orelse return null;
-    const expr_node = (try expectNode(arena, it, tree, parseExpr, Error{
+    const array_expr = (try expectNode(arena, it, tree, parseExpr, Error{
         .ExpectedExpr = Error.ExpectedExpr{ .token = it.peek().?.start },
     })) orelse return null;
     _ = (try expectToken(it, tree, .RParen)) orelse return null;
-    const ptr_idx_payload = (try expectNode(arena, it, tree, parsePtrIndexPayload, Error{
+
+    const payload = (try expectNode(arena, it, tree, parsePtrIndexPayload, Error{
         // TODO
         .InvalidToken = Error.InvalidToken{ .token = it.peek().?.start },
     })) orelse return null;
-    return error.NotImplemented; // TODO
+
+    const node = try arena.create(Node.For);
+    node.* = Node.For{
+        .base = Node{ .id = .For },
+        .label = null,
+        .inline_token = null,
+        .for_token = for_token,
+        .array_expr = array_expr,
+        .payload = payload, // TODO: why is this field optional?
+        .body = undefined, // set by caller
+        .@"else" = null,
+    };
+    return &node.base;
 }
 
 // Payload <- PIPE IDENTIFIER PIPE
