@@ -1496,8 +1496,8 @@ fn parseAsmClobbers(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?Node.A
 
 // BreakLabel <- COLON IDENTIFIER
 fn parseBreakLabel(arena: *Allocator, it: *TokenIterator, tree: *Tree) ?TokenIndex {
-    _ = eatToken(it,.Colon) orelse return null;
-    return eatToken(it,.Identifier);
+    _ = eatToken(it, .Colon) orelse return null;
+    return eatToken(it, .Identifier);
 }
 
 // BlockLabel <- IDENTIFIER COLON
@@ -1961,17 +1961,32 @@ fn parseSuffixOp(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
         return error.NotImplemented; // TODO
     }
 
-    // TODO: stage2 does not have a single token for .* or .?
-
-    // if (eatToken(it, .DotAsterisk)) |_| {
-    //     const identifier = (try expectToken(it, tree, .Identifier)) orelse return null;
-    //     return error.NotImplemented; // TODO
-    // }
-
-    // if (eatToken(it, .DotQuestionMark)) |dot| {
-    //     const identifier = (try expectToken(it, tree, .Identifier)) orelse return null;
-    //     return error.NotImplemented; // TODO
-    // }
+    if (eatToken(it, .Period)) |period| {
+        if (eatToken(it, .Asterisk)) |asterisk| {
+            const node = try arena.create(Node.SuffixOp);
+            node.* = Node.SuffixOp{
+                .base = Node{ .id = .SuffixOp },
+                .lhs = undefined, // TODO
+                .op = Node.SuffixOp.Op.Deref,
+                .rtoken = undefined, // TODO
+            };
+            return &node.base;
+        }
+        if (eatToken(it, .QuestionMark)) |question_mark| {
+            const node = try arena.create(Node.SuffixOp);
+            node.* = Node.SuffixOp{
+                .base = Node{ .id = .SuffixOp },
+                .lhs = undefined, // TODO
+                .op = Node.SuffixOp.Op.UnwrapOptional,
+                .rtoken = undefined, // TODO
+            };
+            return &node.base;
+        }
+        try tree.errors.push(Error{
+            .ExpectedDerefOrUnwrap = Error.ExpectedDerefOrUnwrap{ .token = it.peek().?.start },
+        });
+        return null;
+    }
 
     return null;
 }
@@ -2001,12 +2016,13 @@ fn parseAsyncPrefix(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node 
 // FnCallArguments <- LPAREN ExprList RPAREN
 // ExprList <- (Expr COMMA)* Expr?
 fn parseFnCallArguments(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?Node.SuffixOp.Op.Call.ParamList {
-    _ = eatToken(it, .LParen) orelse return null;
-    return try ListParser(Node.SuffixOp.Op.Call.ParamList, parseExpr).parse(arena, it, tree);
-    // var list = Node.SuffixOp.Op.Call.ParamList.init(arena);
-    // while ((try parseExpr(arena, it, tree))) |node| try list.push(node);
-    // _ = (try expectToken(it, tree, .RParen)) orelse return null;
-    // return list;
+    if (eatToken(it, .LParen) != null) {
+        return try ListParser(Node.SuffixOp.Op.Call.ParamList, parseExpr).parse(arena, it, tree);
+    }
+    var list = try ListParser(Node.SuffixOp.Op.Call.ParamList, parseExpr).parse(arena, it, tree);
+    while ((try parseExpr(arena, it, tree))) |node| try list.push(node);
+    _ = (try expectToken(it, tree, .RParen)) orelse return null;
+    return list;
 }
 
 // ArrayTypeStart <- LBRACKET Expr? RBRACKET

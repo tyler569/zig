@@ -144,6 +144,7 @@ pub const Error = union(enum) {
     ExpectedBlockOrAssignment: ExpectedBlockOrAssignment,
     ExpectedPrefixExpr: ExpectedPrefixExpr, // TODO: lame
     ExpectedLoopExpr: ExpectedLoopExpr,
+    ExpectedDerefOrUnwrap: ExpectedDerefOrUnwrap,
 
     pub fn render(self: *const Error, tokens: *Tree.TokenList, stream: var) !void {
         switch (self.*) {
@@ -184,6 +185,7 @@ pub const Error = union(enum) {
             @TagType(Error).ExpectedBlockOrAssignment => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedPrefixExpr => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedLoopExpr => |*x| return x.render(tokens, stream),
+            @TagType(Error).ExpectedDerefOrUnwrap => |*x| return x.render(tokens, stream),
         }
     }
 
@@ -226,6 +228,7 @@ pub const Error = union(enum) {
             @TagType(Error).ExpectedBlockOrAssignment => |x| return x.token,
             @TagType(Error).ExpectedPrefixExpr => |x| return x.token,
             @TagType(Error).ExpectedLoopExpr => |x| return x.token,
+            @TagType(Error).ExpectedDerefOrUnwrap => |x| return x.token,
         }
     }
 
@@ -255,6 +258,7 @@ pub const Error = union(enum) {
     pub const ExpectedBlockOrAssignment = SingleTokenError("Expected block or assignment, found {}");
     pub const ExpectedPrefixExpr = SingleTokenError("Expected prefix expression, found {}");
     pub const ExpectedLoopExpr = SingleTokenError("Expected loop expression, found {}");
+    pub const ExpectedDerefOrUnwrap = SingleTokenError("Expected pointer dereference or optional unwrap, found {}");
 
     pub const ExpectedPubItem = SimpleError("Pub must be followed by fn decl, var decl, or container member");
     pub const UnattachedDocComment = SimpleError("Unattached documentation comment");
