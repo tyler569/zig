@@ -49,7 +49,7 @@ fn parseRoot(arena: *Allocator, it: *TokenIterator, tree: *Tree) !*Node.Root {
         .shebang = null,
         .eof_token = undefined,
     };
-    node.decls = (try parseContainerMembers(arena, it, tree)) orelse return node;
+    node.decls = (try parseContainerMembers(arena, it, tree, .Keyword_struct)) orelse return node;
     node.eof_token = eatToken(it, .Eof) orelse blk: {
         try tree.errors.push(Error{
             .InvalidToken = Error.InvalidToken{ .token = it.peek().?.start },
@@ -66,7 +66,7 @@ fn parseRoot(arena: *Allocator, it: *TokenIterator, tree: *Tree) !*Node.Root {
 //      / KEYWORD_pub? ContainerField COMMA ContainerMembers
 //      / KEYWORD_pub? ContainerField
 //      /
-fn parseContainerMembers(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?Node.Root.DeclList {
+fn parseContainerMembers(arena: *Allocator, it: *TokenIterator, tree: *Tree, kind: Token.Id) !?Node.Root.DeclList {
     var list = Node.Root.DeclList.init(arena);
 
     while (true) {
@@ -87,8 +87,8 @@ fn parseContainerMembers(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?N
             continue;
         }
 
-        if (try parseContainerField(arena, it, tree)) |node| {
-            node.cast(Node.StructField).?.visib_token = visibility_token;
+        if (try parseContainerField(arena, it, tree, kind)) |node| {
+            if (node.cast(Node.StructField)) |struct_field| struct_field.visib_token = visibility_token;
             try list.push(node);
             if (eatToken(it, .Comma)) |_| continue else break;
         }
@@ -320,8 +320,9 @@ fn parseVarDecl(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
 }
 
 // ContainerField <- IDENTIFIER (COLON TypeExpr)? (EQUAL Expr)?
-fn parseContainerField(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
+fn parseContainerField(arena: *Allocator, it: *TokenIterator, tree: *Tree, kind: Token.Id) !?*Node {
     const name_token = eatToken(it, .Identifier) orelse return null;
+
     const type_expr = blk: {
         if (eatToken(it, .Colon)) |_| {
             break :blk (try expectNode(arena, it, tree, parseTypeExpr, Error{
@@ -329,6 +330,8 @@ fn parseContainerField(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*No
             })) orelse return null;
         } else break :blk null;
     };
+
+    // TODO: supply default value to struct field when ast.Node.StructField supports it
     const default_value = blk: {
         if (eatToken(it, .Equal)) |_| {
             break :blk (try expectNode(arena, it, tree, parseExpr, Error{
@@ -336,19 +339,42 @@ fn parseContainerField(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*No
             }));
         } else break :blk null;
     };
-    _ = default_value; // TODO: use default value when ast.Node.StructField supports it
 
-    const node = try arena.create(Node.StructField);
-    node.* = Node.StructField{
-        .base = Node{ .id = .StructField },
-        .name_token = name_token,
-        .type_expr = type_expr orelse undefined,
-        // set by caller
-        .doc_comments = null,
-        .visib_token = null,
-    };
-
-    return &node.base;
+    switch (kind) {
+        .Keyword_struct => {
+            const node = try arena.create(Node.StructField);
+            node.* = Node.StructField{
+                .base = Node{ .id = .StructField },
+                .name_token = name_token,
+                .type_expr = type_expr orelse undefined,
+                .doc_comments = null,
+                .visib_token = null,
+            };
+            return &node.base;
+        },
+        .Keyword_union => {
+            const node = try arena.create(Node.UnionTag);
+            node.* = Node.UnionTag{
+                .base = Node{ .id = .UnionTag },
+                .doc_comments = null,
+                .name_token = name_token,
+                .type_expr = type_expr orelse undefined,
+                .value_expr = default_value,
+            };
+            return &node.base;
+        },
+        .Keyword_enum => {
+            const node = try arena.create(Node.EnumTag);
+            node.* = Node.EnumTag{
+                .base = Node{ .id = .EnumTag },
+                .doc_comments = null,
+                .name_token = name_token,
+                .value = default_value,
+            };
+            return &node.base;
+        },
+        else => unreachable,
+    }
 }
 
 // Statement
@@ -1903,7 +1929,8 @@ fn parsePtrTypeStart(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node
 fn parseContainerDeclAuto(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     const node = (try parseContainerDeclType(arena, it, tree)) orelse return null;
     const lbrace = (try expectToken(it, tree, .LBrace)) orelse return null;
-    const members = (try parseContainerMembers(arena, it, tree)) orelse return null;
+    const kind = it.list.at(node.cast(Node.ContainerDecl).?.kind_token).id;
+    const members = (try parseContainerMembers(arena, it, tree, kind)) orelse return null;
     const rbrace = (try expectToken(it, tree, .RBrace)) orelse return null;
 
     const decl_type = node.cast(Node.ContainerDecl).?;
@@ -1952,13 +1979,13 @@ fn parseContainerDeclType(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?
                     _ = (try expectToken(it, tree, .RParen)) orelse return null;
                     break :set_enum_expr expr;
                 } else null;
-
                 break :set_init_arg Node.ContainerDecl.InitArg{ .Enum = enum_expr };
             }
 
             const expr = (try expectNode(arena, it, tree, parseExpr, Error{
                 .ExpectedExpr = Error.ExpectedExpr{ .token = it.peek().?.start },
             })) orelse return null;
+            _ = (try expectToken(it, tree, .RParen)) orelse return null;
             break :set_init_arg Node.ContainerDecl.InitArg{ .Type = expr };
         } else Node.ContainerDecl.InitArg{ .None = {} };
 
