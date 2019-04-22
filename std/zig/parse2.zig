@@ -779,7 +779,7 @@ fn parsePrimaryExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node 
         node.* = Node.ControlFlowExpression{
             .base = Node{ .id = .ControlFlowExpression },
             .ltoken = token,
-            .kind = Node.ControlFlowExpression.Kind{ .Break = null }, // TODO
+            .kind = Node.ControlFlowExpression.Kind{ .Break = null }, // TODO: what goes here?
             .rhs = expr_node,
         };
         return &node.base;
@@ -819,7 +819,7 @@ fn parsePrimaryExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node 
         node.* = Node.ControlFlowExpression{
             .base = Node{ .id = .ControlFlowExpression },
             .ltoken = token,
-            .kind = Node.ControlFlowExpression.Kind{ .Continue = null }, // TODO
+            .kind = Node.ControlFlowExpression.Kind{ .Continue = null }, // TODO: what goes here?
             .rhs = null,
         };
         return &node.base;
@@ -1011,32 +1011,31 @@ fn parseCurlySuffixExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*N
 //      / LBRACE RBRACE
 fn parseInitList(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
     const lbrace = eatToken(it, .LBrace) orelse return null;
+    var init_list = Node.SuffixOp.Op.InitList.init(arena);
+    const node = try arena.create(Node.SuffixOp);
+    node.* = Node.SuffixOp{
+        .base = Node{ .id = .SuffixOp },
+        .lhs = undefined, // set by caller
+        .op = Node.SuffixOp.Op{ .StructInitializer = init_list },
+        .rtoken = undefined, // set below
+    };
 
     if (try parseFieldInit(arena, it, tree)) |field_init| {
-        const node = try arena.create(Node.SuffixOp);
-        node.* = Node.SuffixOp{
-            .base = Node{ .id = .SuffixOp },
-            .lhs = undefined, // set by caller
-            .op = Node.SuffixOp.Op{ .StructInitializer = Node.SuffixOp.Op.InitList.init(arena) },
-            .rtoken = undefined, // set below
-        };
-        try node.op.StructInitializer.push(field_init);
-
+        try init_list.push(field_init);
         while (eatToken(it, .Comma)) |_| {
-            const next_field = (try parseFieldInit(arena, it, tree)) orelse break;
-            try node.op.StructInitializer.push(next_field);
+            const next = (try parseFieldInit(arena, it, tree)) orelse break;
+            try init_list.push(next);
         }
-
-        node.rtoken = (try expectToken(it, tree, .RBrace)) orelse return null;
-        return &node.base;
+    } else if (try parseExpr(arena, it, tree)) |expr| {
+        try init_list.push(expr);
+        while (eatToken(it, .Comma)) |_| {
+            const next = (try parseExpr(arena, it, tree)) orelse break;
+            try init_list.push(next);
+        }
     }
 
-    if (try parseExpr(arena, it, tree)) |expr| {
-        return error.NotImplemented; // TODO
-    }
-    const rbrace = (try expectToken(it, tree, .RBrace)) orelse return null;
-
-    return error.NotImplemented; // TODO
+    node.rtoken = (try expectToken(it, tree, .RBrace)) orelse return null;
+    return &node.base;
 }
 
 // TypeExpr <- PrefixTypeOp* ErrorUnionExpr
@@ -2179,7 +2178,7 @@ fn parseIdentifier(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
 fn createLiteral(arena: *Allocator, comptime T: type, token: TokenIndex) !*Node {
     const result = try arena.create(T);
     result.* = T{
-        .base = ast.Node{ .id = Node.typeToId(T) },
+        .base = Node{ .id = Node.typeToId(T) },
         .token = token,
     };
     return &result.base;
