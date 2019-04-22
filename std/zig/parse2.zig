@@ -1265,13 +1265,20 @@ fn parseErrorSetDecl(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node
 
 // GroupedExpr <- LPAREN Expr RPAREN
 fn parseGroupedExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    _ = eatToken(it, .LParen) orelse return null;
+    const lparen = eatToken(it, .LParen) orelse return null;
     const expr = (try expectNode(arena, it, tree, parseExpr, Error{
         .ExpectedExpr = Error.ExpectedExpr{ .token = it.peek().?.start },
     })) orelse return null;
-    _ = (try expectToken(it, tree, .RParen)) orelse return null;
+    const rparen = (try expectToken(it, tree, .RParen)) orelse return null;
 
-    return error.NotImplemented; // TODO
+    const node = try arena.create(Node.GroupedExpression);
+    node.* = Node.GroupedExpression{
+        .base = Node{ .id = .GroupedExpression },
+        .lparen = lparen,
+        .expr = expr,
+        .rparen = rparen,
+    };
+    return &node.base;
 }
 
 // IfTypeExpr <- IfPrefix TypeExpr (KEYWORD_else Payload? TypeExpr)?
