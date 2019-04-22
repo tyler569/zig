@@ -572,7 +572,7 @@ fn parseForStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node
             return node;
         }
 
-        return block_expr_node;
+        return node;
     }
 
     if (try parseAssignExpr(arena, it, tree)) |assign_expr| {
@@ -609,30 +609,64 @@ fn parseForStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node
 //     <- WhilePrefix BlockExpr ( KEYWORD_else Payload? Statement )?
 //      / WhilePrefix AssignExpr ( SEMICOLON / KEYWORD_else Payload? Statement )
 fn parseWhileStatement(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    const while_prefix = (try parseWhilePrefix(arena, it, tree)) orelse return null;
+    const node = (try parseWhilePrefix(arena, it, tree)) orelse return null;
+    const while_prefix = node.cast(Node.While).?;
 
-    if (try parseBlockExpr(arena, it, tree)) |block_expr| {
-        if (eatToken(it, .Keyword_else)) |_| {
-            const payload = parsePayload(arena, it, tree);
-            const statement = (try expectNode(arena, it, tree, parseStatement, Error{
+    if (try parseBlockExpr(arena, it, tree)) |block_expr_node| {
+        while_prefix.body = block_expr_node;
+
+        if (eatToken(it, .Keyword_else)) |else_token| {
+            const payload = try parsePayload(arena, it, tree);
+
+            const statement_node = (try expectNode(arena, it, tree, parseStatement, Error{
+                .InvalidToken = Error.InvalidToken{ .token = it.peek().?.start },
+            })) orelse return null;
+
+            const else_node = try arena.create(Node.Else);
+            else_node.* = Node.Else{
+                .base = Node{ .id = .Else },
+                .else_token = else_token,
+                .payload = payload,
+                .body = statement_node,
+            };
+            while_prefix.@"else" = else_node;
+
+            return node;
+        }
+
+        return node;
+    }
+
+    if (try parseAssignExpr(arena, it, tree)) |assign_expr_node| {
+        while_prefix.body = assign_expr_node;
+
+        if (eatToken(it, .Semicolon) != null) return node;
+
+        if (eatToken(it, .Keyword_else)) |else_token| {
+            const payload = try parsePayload(arena, it, tree);
+
+            const statement_node = (try expectNode(arena, it, tree, parseStatement, Error{
                 .ExpectedStatement = Error.ExpectedStatement{ .token = it.peek().?.start },
             })) orelse return null;
-            return error.NotImplemented;
+
+            const else_node = try arena.create(Node.Else);
+            else_node.* = Node.Else{
+                .base = Node{ .id = .Else },
+                .else_token = else_token,
+                .payload = payload,
+                .body = statement_node,
+            };
+            while_prefix.@"else" = else_node;
+            return node;
         }
+
+        try tree.errors.push(Error{
+            .ExpectedSemiOrElse = Error.ExpectedSemiOrElse{ .token = it.peek().?.start },
+        });
+        return null;
     }
 
-    if (try parseAssignExpr(arena, it, tree)) |assign_expr| {
-        if (eatToken(it, .Semicolon)) |token| {
-            // asdf
-        }
-        _ = (try expectToken(it, tree, .Keyword_else)) orelse return null;
-        const payload = parsePayload(arena, it, tree);
-        const statement = (try expectNode(arena, it, tree, parseStatement, Error{
-            .ExpectedStatement = Error.ExpectedStatement{ .token = it.peek().?.start },
-        })) orelse return null;
-    }
-
-    return error.NotImplemented; // TODO
+    return null;
 }
 
 // BlockExprStatement
