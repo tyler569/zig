@@ -1528,7 +1528,13 @@ fn parseFieldInit(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
 
 // WhileContinueExpr <- COLON LPAREN AssignExpr RPAREN
 fn parseWhileContinueExpr(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node {
-    return error.NotImplemented; // TODO
+    _ = eatToken(it, .Colon) orelse return null;
+    _ = (try expectToken(it, tree, .LParen)) orelse return null;
+    const node = (try expectNode(arena, it, tree, parseAssignExpr, Error{
+        .ExpectedExprOrAssignment = Error.ExpectedExprOrAssignment{ .token = it.peek().?.start },
+    })) orelse return null;
+    _ = (try expectToken(it, tree, .RParen)) orelse return null;
+    return node;
 }
 
 // LinkSection <- KEYWORD_linksection LPAREN Expr RPAREN

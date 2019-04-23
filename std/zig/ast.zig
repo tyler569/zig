@@ -142,6 +142,7 @@ pub const Error = union(enum) {
     ExpectedCommaOrEnd: ExpectedCommaOrEnd,
     ExpectedParamList: ExpectedParamList,
     ExpectedBlockOrAssignment: ExpectedBlockOrAssignment,
+    ExpectedExprOrAssignment: ExpectedExprOrAssignment,
     ExpectedPrefixExpr: ExpectedPrefixExpr, // TODO: lame
     ExpectedLoopExpr: ExpectedLoopExpr,
     ExpectedDerefOrUnwrap: ExpectedDerefOrUnwrap,
@@ -183,6 +184,7 @@ pub const Error = union(enum) {
             @TagType(Error).ExpectedCommaOrEnd => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedParamList => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedBlockOrAssignment => |*x| return x.render(tokens, stream),
+            @TagType(Error).ExpectedExprOrAssignment => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedPrefixExpr => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedLoopExpr => |*x| return x.render(tokens, stream),
             @TagType(Error).ExpectedDerefOrUnwrap => |*x| return x.render(tokens, stream),
@@ -226,6 +228,7 @@ pub const Error = union(enum) {
             @TagType(Error).ExpectedCommaOrEnd => |x| return x.token,
             @TagType(Error).ExpectedParamList => |x| return x.token,
             @TagType(Error).ExpectedBlockOrAssignment => |x| return x.token,
+            @TagType(Error).ExpectedExprOrAssignment => |x| return x.token,
             @TagType(Error).ExpectedPrefixExpr => |x| return x.token,
             @TagType(Error).ExpectedLoopExpr => |x| return x.token,
             @TagType(Error).ExpectedDerefOrUnwrap => |x| return x.token,
@@ -256,6 +259,7 @@ pub const Error = union(enum) {
     pub const ExpectedPrimaryExpr = SingleTokenError("Expected primary expression, found {}");
     pub const ExpectedParamList = SingleTokenError("Expected parameter list, found {}");
     pub const ExpectedBlockOrAssignment = SingleTokenError("Expected block or assignment, found {}");
+    pub const ExpectedExprOrAssignment = SingleTokenError("Expected expression or assignment, found {}");
     pub const ExpectedPrefixExpr = SingleTokenError("Expected prefix expression, found {}");
     pub const ExpectedLoopExpr = SingleTokenError("Expected loop expression, found {}");
     pub const ExpectedDerefOrUnwrap = SingleTokenError("Expected pointer dereference or optional unwrap, found {}");
