@@ -1,3 +1,10 @@
+test "temporary trivial example" {
+    try testCanonical(
+        \\const x = true;
+        \\
+    );
+}
+
 test "zig fmt: allowzero pointer" {
     try testCanonical(
         \\const T = [*]allowzero const u8;
