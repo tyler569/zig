@@ -2016,11 +2016,8 @@ fn parseAsyncPrefix(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?*Node 
 // FnCallArguments <- LPAREN ExprList RPAREN
 // ExprList <- (Expr COMMA)* Expr?
 fn parseFnCallArguments(arena: *Allocator, it: *TokenIterator, tree: *Tree) !?Node.SuffixOp.Op.Call.ParamList {
-    if (eatToken(it, .LParen) != null) {
-        return try ListParser(Node.SuffixOp.Op.Call.ParamList, parseExpr).parse(arena, it, tree);
-    }
-    var list = try ListParser(Node.SuffixOp.Op.Call.ParamList, parseExpr).parse(arena, it, tree);
-    while ((try parseExpr(arena, it, tree))) |node| try list.push(node);
+    if (eatToken(it, .LParen) == null) return null;
+    const list = try ListParser(Node.SuffixOp.Op.Call.ParamList, parseExpr).parse(arena, it, tree);
     _ = (try expectToken(it, tree, .RParen)) orelse return null;
     return list;
 }
