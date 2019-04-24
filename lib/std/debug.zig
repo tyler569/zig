@@ -1263,7 +1263,7 @@ pub const DebugInfo = switch (builtin.os) {
         sect_contribs: []pdb.SectionContribEntry,
         modules: []Module,
     },
-    .linux, .freebsd, .netbsd => DwarfInfo,
+    .linux, .freebsd, .netbsd, .nightingale => DwarfInfo,
     else => @compileError("Unsupported OS"),
 };
 

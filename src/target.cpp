@@ -181,6 +181,7 @@ static const Os os_list[] = {
     OsEmscripten,
     OsZen,
     OsUefi,
+    OsNightingale,
 };
 
 // Coordinate with zig_llvm.h
@@ -270,6 +271,7 @@ ZigLLVM_OSType get_llvm_os_type(Os os_type) {
     switch (os_type) {
         case OsFreestanding:
         case OsZen:
+        case OsNightingale:
             return ZigLLVM_UnknownOS;
         case OsAnanas:
             return ZigLLVM_Ananas;
@@ -429,6 +431,8 @@ const char *target_os_name(Os os_type) {
             return "zen";
         case OsUefi:
             return "uefi";
+        case OsNightingale:
+            return "nightingale";
         case OsAnanas:
         case OsCloudABI:
         case OsDragonFly:
@@ -1053,6 +1057,7 @@ uint32_t target_c_type_size_in_bits(const ZigTarget *target, CIntType id) {
         case OsOpenBSD:
         case OsWASI:
         case OsEmscripten:
+        case OsNightingale:
             switch (id) {
                 case CIntTypeShort:
                 case CIntTypeUShort:
@@ -1372,6 +1377,7 @@ const char *target_dynamic_linker(const ZigTarget *target) {
             zig_unreachable();
         }
         case OsFreestanding:
+        case OsNightingale:
         case OsIOS:
         case OsTvOS:
         case OsWatchOS:
@@ -1655,6 +1661,7 @@ ZigLLVM_EnvironmentType target_default_abi(ZigLLVM_ArchType arch, Os os) {
         case OsFuchsia:
         case OsKFreeBSD:
         case OsNetBSD:
+        case OsNightingale:
         case OsHurd:
             return ZigLLVM_GNU;
         case OsUefi:

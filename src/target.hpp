@@ -51,6 +51,7 @@ enum Os {
     OsEmscripten,
     OsZen,
     OsUefi,
+    OsNightingale,
 };
 
 // Synchronize with target.cpp::subarch_list_list
